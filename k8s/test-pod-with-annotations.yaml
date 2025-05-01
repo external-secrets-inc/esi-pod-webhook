@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  namespace: test
+  annotations:
+    secretless.externalsecrets.com/env-vars: "MY_SECRET"
+    secretless.externalsecrets.com/file-secrets: "/mnt/secrets/secret.txt"
+    secretless.externalsecrets.com/secretstore: "vault-backend"
+spec:
+  containers:
+  - name: test
+    image: busybox
+    command: ["sh", "-c", "echo $MY_SECRET && cat /mnt/secrets/secret.txt && sleep 3600"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "50m"
+      limits:
+        memory: "64Mi"
+        cpu: "100m"
