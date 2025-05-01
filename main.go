@@ -18,7 +18,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
@@ -39,14 +41,17 @@ var (
 
 func init() {
 	// Add SecretStore type to the scheme
+	log.Printf("Adding SecretStore v1 to scheme...")
 	if err := esv1.AddToScheme(runtimeScheme); err != nil {
-		log.Fatalf("Failed to add SecretStore to scheme: %v", err)
+		log.Fatalf("Failed to add SecretStore v1 to scheme: %v", err)
 	}
+	log.Printf("Successfully added SecretStore v1 to scheme")
 }
 
 type webhookServer struct {
 	server *http.Server
 	clientset *kubernetes.Clientset
+	dynamic   dynamic.Interface
 }
 
 func newWebhookServer() (*webhookServer, error) {
@@ -57,11 +62,17 @@ func newWebhookServer() (*webhookServer, error) {
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create clientset: %v", err)
+		log.Fatalf("Failed to create Kubernetes client: %v", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("Failed to create dynamic client: %v", err)
 	}
 
 	return &webhookServer{
 		clientset: clientset,
+		dynamic:   dynamicClient,
 	}, nil
 }
 
@@ -105,7 +116,6 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	req := ar.Request
 	log.Printf("Processing admission request for %s/%s", req.Namespace, req.Name)
 
-	// Parse the Pod object.
 	pod := corev1.Pod{}
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		log.Printf("Could not unmarshal raw object: %v", err)
@@ -116,13 +126,11 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
-	// Log all annotations for debugging
 	log.Printf("Pod %s/%s annotations:", pod.Namespace, pod.Name)
 	for k, v := range pod.Annotations {
 		log.Printf("  %s: %s", k, v)
 	}
 
-	// First check: if pod has no secretless annotations at all, allow it - checks if keys exists
 	_, hasEnvVars := pod.Annotations["secretless.externalsecrets.com/env-vars"]
 	_, hasFileSecrets := pod.Annotations["secretless.externalsecrets.com/file-secrets"]
 	_, hasSkip := pod.Annotations["secretless.externalsecrets.com/skip"]
@@ -137,21 +145,22 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	if !hasEnvVars && !hasFileSecrets && !hasSkip && !hasSecretStore {
 		log.Printf("Pod %s/%s has no secretless annotations, allowing", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
 			Allowed: true,
 		}
 	}
 
-	// Second check: if pod has skip annotation, allow it
 	if pod.Annotations["secretless.externalsecrets.com/skip"] == "true" {
 		log.Printf("Skipping pod %s/%s due to skip annotation", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
 			Allowed: true,
 		}
 	}
 
-	// Check if pod needs mutation
 	if !needsMutation(&pod) {
 		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
 			Allowed: true,
 		}
 	}
@@ -163,11 +172,15 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		storeName = "default"
 	}
 
-	// Get SecretStore from pod's namespace
-	secretStore, err := ws.clientset.RESTClient().Get().AbsPath(
-		"/apis/external-secrets.io/v1",
-		).Namespace(pod.Namespace).Resource("secretstores").Name(storeName).Do(context.Background()).Get()
+	log.Printf("Getting SecretStore %s in namespace %s...", storeName, pod.Namespace)
+	secretStoreGVR := schema.GroupVersionResource{
+		Group:    "external-secrets.io",
+		Version:  "v1",
+		Resource: "secretstores",
+	}
+	secretStore, err := ws.dynamic.Resource(secretStoreGVR).Namespace(pod.Namespace).Get(context.Background(), storeName, metav1.GetOptions{})
 	if err != nil {
+		log.Printf("Error getting SecretStore: %v", err)
 		return &admissionv1.AdmissionResponse{
 			UID: ar.Request.UID,
 			Result: &metav1.Status{
@@ -175,19 +188,19 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 			},
 		}
 	}
+	log.Printf("Got SecretStore response: %+v", secretStore)
 
-	// Convert to SecretStore type
-	secretStoreObj, ok := secretStore.(*esv1.SecretStore)
-	if !ok {
+	secretStoreObj := &esv1.SecretStore{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(secretStore.UnstructuredContent(), secretStoreObj); err != nil {
+		log.Printf("Error converting unstructured to SecretStore: %v", err)
 		return &admissionv1.AdmissionResponse{
 			UID: ar.Request.UID,
 			Result: &metav1.Status{
-				Message: "failed to convert to SecretStore type",
+				Message: fmt.Sprintf("failed to convert SecretStore %s to SecretStore type: %v", storeName, err),
 			},
 		}
 	}
 
-	// Create ConfigMap with SecretStore configuration
 	if err := ws.createSecretStoreConfigMap(&pod, secretStoreObj); err != nil {
 		return &admissionv1.AdmissionResponse{
 			Result: &metav1.Status{
@@ -196,20 +209,16 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
-	// Create patch operations
 	var patches []patchOperation
 
-	// Handle environment variable injection
 	if hasEnvVarMode(&pod) {
 		patches = append(patches, createEnvVarModePatches(&pod)...)
 	}
 
-	// Handle file injection
 	if hasFileMode(&pod) {
 		patches = append(patches, createFileModePatches(&pod)...)
 	}
 
-	// Create response
 	patchBytes, err := json.Marshal(patches)
 	if err != nil {
 		return &admissionv1.AdmissionResponse{
