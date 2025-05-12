@@ -35,8 +35,12 @@ metadata:
   namespace: secretless-system
 spec:
   ports:
-    - port: 8443
-      targetPort: 8443
+  - name: webhook
+    port: 8443
+    targetPort: webhook
+  - name: debug
+    port: 40000
+    targetPort: debug
   selector:
     app: esi-pod-webhook
 ---
@@ -108,14 +112,18 @@ spec:
             - containerPort: 8443
               name: webhook
               protocol: TCP
-          volumeMounts:
-            - name: webhook-certs
-              mountPath: /etc/webhook/certs
-              readOnly: true
+            - containerPort: 40000
+              name: debug
+              protocol: TCP
           args:
             - --tls-cert=/etc/webhook/certs/tls.crt
             - --tls-key=/etc/webhook/certs/tls.key
             - --port=8443
+            - --debug-port=40000
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
           resources:
             limits:
               cpu: 200m

@@ -7,8 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -17,11 +19,10 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -37,7 +38,7 @@ const (
 )
 
 var (
-	runtimeScheme = runtime.NewScheme()
+	runtimeScheme = kruntime.NewScheme()
 	codecs       = serializer.NewCodecFactory(runtimeScheme)
 	deserializer = codecs.UniversalDeserializer()
 )
@@ -133,7 +134,7 @@ func (ws *webhookServer) createSecretlessConfigMap(pod *corev1.Pod, uid types.UI
 		// ConfigMap exists, update it
 		configMap.ResourceVersion = existing.ResourceVersion
 		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
-	} else if errors.IsNotFound(err) {
+	} else if k8serrors.IsNotFound(err) {
 		// ConfigMap doesn't exist, create it
 		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
 	}
@@ -176,7 +177,7 @@ func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore
 		// ConfigMap exists, update it
 		configMap.ResourceVersion = existing.ResourceVersion
 		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
-	} else if errors.IsNotFound(err) {
+	} else if k8serrors.IsNotFound(err) {
 		// ConfigMap doesn't exist, create it
 		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
 	}
@@ -267,7 +268,7 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	log.Printf("Got SecretStore response: %+v", secretStore)
 
 	secretStoreObj := &esv1.SecretStore{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(secretStore.UnstructuredContent(), secretStoreObj); err != nil {
+	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(secretStore.UnstructuredContent(), secretStoreObj); err != nil {
 		log.Printf("Error converting unstructured to SecretStore: %v", err)
 		return &admissionv1.AdmissionResponse{
 			UID: ar.Request.UID,
@@ -581,12 +582,31 @@ func main() {
 	var tlsCert string
 	var port int
 	var kubeconfigPath string
+	var debugPort int
 
 	flag.StringVar(&tlsKey, "tls-key", "", "Path to the TLS key")
 	flag.StringVar(&tlsCert, "tls-cert", "", "Path to the TLS certificate")
 	flag.IntVar(&port, "port", 8443, "Webhook server port")
-	flag.StringVar(&kubeconfigPath, "kube-config", "", "Path to kubeconfig file")
+	flag.StringVar(&kubeconfigPath, "kube-config", "", "Paths to a kubeconfig. Only required if out-of-cluster.")
+	flag.IntVar(&debugPort, "debug-port", 40000, "Debug server port")
 	flag.Parse()
+
+	// Start debug server if debug port is specified
+	if debugPort > 0 {
+		go func() {
+			log.Printf("Starting debug server on port %d", debugPort)
+			// Register pprof handlers
+			mux := http.NewServeMux()
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", debugPort), mux); err != nil {
+				log.Printf("Debug server failed: %v", err)
+			}
+		}()
+	}
 
 	pair, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
 	if err != nil {
