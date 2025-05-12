@@ -28,13 +28,20 @@ setup-vault:
 		--set "server.dev.enabled=true" \
 		--set "server.dev.devRootToken=root"
 	@echo "Waiting for Vault to be ready..."
-	@echo "Sleeping for 5 seconds to give Vault time to create the pod..."
-	sleep 5
+	@echo "Sleeping for 15 seconds to give Vault time to create the pod..."
+	sleep 15
 	kubectl wait --for=condition=Ready pod/vault-0 -n $(VAULT_NAMESPACE) --timeout=120s
 	@echo "Configuring Vault..."
 	kubectl exec -n $(VAULT_NAMESPACE) vault-0 -- vault auth enable kubernetes
 	kubectl exec -n $(VAULT_NAMESPACE) vault-0 -- /bin/sh -c '\
-		echo "path \"*\" { capabilities = [\"read\"] }" | vault policy write reader -'
+		echo "path \"secret/*\" { capabilities = [\"read\"] }" | vault policy write secretless-reader -'
+	kubectl exec -n $(VAULT_NAMESPACE) vault-0 -- /bin/sh -c '\
+		vault write auth/kubernetes/role/secretless-reader \
+			bind_namespace="*" \
+			bound_service_account_names="*" \
+			bound_service_account_namespaces="*" \
+			policies=secretless-reader \
+			ttl=1h'
 	kubectl exec -n $(VAULT_NAMESPACE) vault-0 -- /bin/sh -c '\
 		vault write auth/kubernetes/config \
 			kubernetes_host="https://kubernetes.default.svc.cluster.local" \
@@ -54,6 +61,8 @@ setup-eso:
 	helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace
 	@echo "Waiting for ESO to be ready..."
 	kubectl wait --for=condition=Available deployment --all -n external-secrets --timeout=120s
+	@echo "Waiting for ESO CRDs to be ready..."
+	kubectl wait --for=condition=Established crd/secretstores.external-secrets.io --timeout=120s
 
 .PHONY: build
 build:
@@ -69,8 +78,6 @@ build:
 deploy-webhook: build
 	@echo "Creating namespace..."
 	kubectl create namespace $(NAMESPACE) || true
-	@echo "Creating TLS secret..."
-	./scripts/generate-certs.sh
 	@echo "Deploying webhook..."
 	kubectl apply -f k8s/webhook.yaml
 
@@ -82,6 +89,15 @@ test-vault:
 	kubectl apply -f k8s/vault-secretstore.yaml
 	@echo "Creating test pod..."
 	kubectl apply -f k8s/test-pod.yaml
+
+.PHONY: clean-light
+clean-light:
+	@echo "Removing webhook..."
+	kubectl delete -f k8s/webhook.yaml || true
+	@echo "Removing ESO..."
+	helm uninstall external-secrets -n external-secrets || true
+	@echo "Removing Vault..."
+	helm uninstall vault -n $(VAULT_NAMESPACE) || true
 
 .PHONY: clean
 clean:

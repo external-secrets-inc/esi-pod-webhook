@@ -19,10 +19,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	"gopkg.in/yaml.v3"
 )
@@ -54,10 +57,22 @@ type webhookServer struct {
 	dynamic   dynamic.Interface
 }
 
-func newWebhookServer() (*webhookServer, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cluster config: %v", err)
+func newWebhookServer(kubeconfigPath string) (*webhookServer, error) {
+	var config *rest.Config
+	var err error
+
+	if kubeconfigPath == "" {
+		// Try in-cluster config
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get in-cluster config: %v", err)
+		}
+	} else {
+		// Use kubeconfig file
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get config from kubeconfig: %v", err)
+		}
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
@@ -76,7 +91,60 @@ func newWebhookServer() (*webhookServer, error) {
 	}, nil
 }
 
-func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore *esv1.SecretStore) error {
+func (ws *webhookServer) createSecretlessConfigMap(pod *corev1.Pod, uid types.UID) error {
+	// Parse file-secrets annotation
+	fileSecrets := pod.Annotations["secretless.externalsecrets.com/file-secrets"]
+	if fileSecrets == "" {
+		return nil
+	}
+
+	// Create config
+	config := map[string]string{
+		"config.json": fmt.Sprintf(`{
+			"external_secrets": [
+				{
+					"name": "%s",
+					"mount_path": "%s"
+				}
+			]
+		}`, fileSecrets, pod.Name),
+	}
+
+	// Create ConfigMap
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-secretless-config", pod.Name),
+			Namespace: pod.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "v1",
+					Kind:       "Pod",
+					Name:       pod.Name,
+					UID:        uid,
+				},
+			},
+		},
+		Data: config,
+	}
+
+	// Check if ConfigMap exists
+	existing, err := ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
+	if err == nil {
+		// ConfigMap exists, update it
+		configMap.ResourceVersion = existing.ResourceVersion
+		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
+	} else if errors.IsNotFound(err) {
+		// ConfigMap doesn't exist, create it
+		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create or update secretless ConfigMap: %v", err)
+	}
+
+	return nil
+}
+
+func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore *esv1.SecretStore, uid types.UID) error {
 	// Convert SecretStore to YAML
 	secretStoreYAML, err := yaml.Marshal(secretStore)
 	if err != nil {
@@ -93,7 +161,7 @@ func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore
 					APIVersion: "v1",
 					Kind:       "Pod",
 					Name:       pod.Name,
-					UID:        pod.UID,
+					UID:        uid,
 				},
 			},
 		},
@@ -102,8 +170,16 @@ func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore
 		},
 	}
 
-	// Create ConfigMap in the pod's namespace
-	_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
+	// Check if ConfigMap exists
+	existing, err := ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
+	if err == nil {
+		// ConfigMap exists, update it
+		configMap.ResourceVersion = existing.ResourceVersion
+		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
+	} else if errors.IsNotFound(err) {
+		// ConfigMap doesn't exist, create it
+		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create ConfigMap: %v", err)
 	}
@@ -201,8 +277,36 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
-	if err := ws.createSecretStoreConfigMap(&pod, secretStoreObj); err != nil {
+	if err := ws.createSecretStoreConfigMap(&pod, secretStoreObj, req.UID); err != nil {
 		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	if err := ws.createSecretlessConfigMap(&pod, req.UID); err != nil {
+		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	if err := ws.createSecretStoreConfigMap(&pod, secretStoreObj, req.UID); err != nil {
+		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	if err := ws.createSecretlessConfigMap(&pod, req.UID); err != nil {
+		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
@@ -342,6 +446,18 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 		},
 	}
 
+	// Create ConfigMap for secretless config
+	secretlessConfigVolume := corev1.Volume{
+		Name: "secretless-config",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: fmt.Sprintf("%s-secretless-config", pod.Name),
+				},
+			},
+		},
+	}
+
 	// Create sidecar container
 	sidecar := corev1.Container{
 		Name:  "secretless-sidecar",
@@ -368,16 +484,33 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 		},
 	}
 
+	// Only add secretstore-config volume if env var mode is not enabled
+	_, hasEnvVars := pod.Annotations["secretless.externalsecrets.com/env-vars"]
+
 	patches = append(patches,
 		patchOperation{
 			Op:    "add",
 			Path:  "/spec/volumes/-",
 			Value: secretVolume,
 		},
+	)
+
+	// Only add secretstore-config if env var mode is not enabled
+	if !hasEnvVars {
+		patches = append(patches,
+			patchOperation{
+				Op:    "add",
+				Path:  "/spec/volumes/-",
+				Value: configVolume,
+			},
+		)
+	}
+
+	patches = append(patches,
 		patchOperation{
 			Op:    "add",
 			Path:  "/spec/volumes/-",
-			Value: configVolume,
+			Value: secretlessConfigVolume,
 		},
 		patchOperation{
 			Op:    "add",
@@ -447,10 +580,12 @@ func main() {
 	var tlsKey string
 	var tlsCert string
 	var port int
+	var kubeconfigPath string
 
 	flag.StringVar(&tlsKey, "tls-key", "", "Path to the TLS key")
 	flag.StringVar(&tlsCert, "tls-cert", "", "Path to the TLS certificate")
 	flag.IntVar(&port, "port", 8443, "Webhook server port")
+	flag.StringVar(&kubeconfigPath, "kube-config", "", "Path to kubeconfig file")
 	flag.Parse()
 
 	pair, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
@@ -459,7 +594,7 @@ func main() {
 	}
 
 	// Create webhook server with Kubernetes client
-	whsvr, err := newWebhookServer()
+	whsvr, err := newWebhookServer(kubeconfigPath)
 	if err != nil {
 		log.Fatalf("Failed to create webhook server: %v", err)
 	}
