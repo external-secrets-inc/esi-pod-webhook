@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -16,6 +15,10 @@ import (
 	"strings"
 	"syscall"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+
+	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
+	"gopkg.in/yaml.v3"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,20 +30,18 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
-	"gopkg.in/yaml.v3"
 )
 
 const (
-	secretlessBinary  = "secretless-eso"
-	sharedVolumeName  = "secret-data"
-	sharedVolumePath  = "/mnt/secrets"
+	secretlessBinary = "/bin/secretless-eso"
+	sharedVolumeName = "secret-data"
+	sharedVolumePath = "/mnt/secrets"
 )
 
 var (
 	runtimeScheme = kruntime.NewScheme()
-	codecs       = serializer.NewCodecFactory(runtimeScheme)
-	deserializer = codecs.UniversalDeserializer()
+	codecs        = serializer.NewCodecFactory(runtimeScheme)
+	deserializer  = codecs.UniversalDeserializer()
 )
 
 func init() {
@@ -53,7 +54,7 @@ func init() {
 }
 
 type webhookServer struct {
-	server *http.Server
+	server    *http.Server
 	clientset *kubernetes.Clientset
 	dynamic   dynamic.Interface
 }
@@ -175,10 +176,12 @@ func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore
 	existing, err := ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
 	if err == nil {
 		// ConfigMap exists, update it
+		log.Printf("Updating ConfigMap %s/%s", pod.Namespace, pod.Name)
 		configMap.ResourceVersion = existing.ResourceVersion
 		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
 	} else if k8serrors.IsNotFound(err) {
 		// ConfigMap doesn't exist, create it
+		log.Printf("Creating ConfigMap %s/%s", pod.Namespace, pod.Name)
 		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
 	}
 	if err != nil {
@@ -222,7 +225,7 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	if !hasEnvVars && !hasFileSecrets && !hasSkip && !hasSecretStore {
 		log.Printf("Pod %s/%s has no secretless annotations, allowing", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
+			UID:     ar.Request.UID,
 			Allowed: true,
 		}
 	}
@@ -230,14 +233,14 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	if pod.Annotations["secretless.externalsecrets.com/skip"] == "true" {
 		log.Printf("Skipping pod %s/%s due to skip annotation", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
+			UID:     ar.Request.UID,
 			Allowed: true,
 		}
 	}
 
 	if !needsMutation(&pod) {
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
+			UID:     ar.Request.UID,
 			Allowed: true,
 		}
 	}
@@ -334,7 +337,7 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	}
 
 	return &admissionv1.AdmissionResponse{
-		UID: ar.Request.UID,
+		UID:     ar.Request.UID,
 		Allowed: true,
 		Patch:   patchBytes,
 		PatchType: func() *admissionv1.PatchType {
@@ -400,7 +403,7 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 			"--mode=envVarInjection",
 			"--binary=" + strings.Join(originalCommand, " "),
 		}
-		
+
 		// Add volume mount for SecretStore config
 		pod.Spec.Containers[i].VolumeMounts = append(
 			pod.Spec.Containers[i].VolumeMounts,
@@ -569,7 +572,7 @@ func (ws *webhookServer) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(resp); err != nil {
 		log.Printf("Can't write response: %v", err)

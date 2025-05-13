@@ -1,0 +1,142 @@
+name: Reusable workflow to run trivy scan
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        required: true
+        type: string
+      image-tag:
+        required: false
+        type: string
+      tag-suffix:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      ref:
+        required: false
+        default: main
+        type: string
+      build-args:
+        required: true
+        type: string
+      build-arch:
+        required: true
+        type: string
+      build-platform:
+        required: true
+        type: string
+    secrets:
+      ESI_BOT_PRIVATE_KEY:
+        required: true
+      
+
+env:
+  IMAGE_NAME: ${{ inputs.image-name }}
+  TAG_SUFFIX: ${{ inputs.tag-suffix }}
+  ARCH: ${{ inputs.build-arch }}
+  DOCKERFILE: ${{ inputs.dockerfile }}
+  IS_FORK: "false"
+  NAME: "secretless-webhook"
+
+jobs:
+  build-publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.container_info.outputs.image-tag }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Login to github app
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+            app-id: ${{ vars.ESI_BOT_APP_ID }}
+            private-key: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
+            owner: external-secrets-inc
+
+      - name: Setup access for private go modules
+        run: |
+            echo -e "machine github.com login external-secrets-bot[bot] password ${{ steps.app-token.outputs.token }}" >> ~/.netrc
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
+        with:
+          platforms: all
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+        with:
+          version: 'v0.4.2'
+          install: true
+
+      - name: Setup Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        id: setup-go
+        with:
+          go-version-file: "go.mod"
+
+      - name: Download Go modules
+        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
+        run: go mod download
+        env:
+          GOPRIVATE: github.com/external-secrets-inc/*
+
+      - name: Fetch History
+        shell: bash
+        run: git fetch --prune --unshallow
+
+      - name: Set up Google Cloud authentication
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.DEV_IDENTITY_POOL }}
+          service_account: ${{ vars.DEV_CI_SERVICE_ACCOUNT }}
+          access_token_lifetime: 1800s
+
+
+      - name: Login to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: us-central1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Get docker image tag
+        id: container_info
+        shell: bash
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          # rebuild-image
+          if [ "${{ inputs.image-tag }}" != "" ]; then
+            TAG="${{ inputs.image-tag }}${{ inputs.tag-suffix }}"
+          # main / release-x.y
+          elif [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" =~ refs/heads/release-.*  ]]; then
+            TAG=${GITHUB_REF#refs/heads/}${{ inputs.tag-suffix }}
+          # Pull Request
+          else
+            TAG=${{ github.ref}}-dirty
+          fi
+          echo "image-tag=${TAG}"
+          echo "image-tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build & Publish Artifacts
+        if: env.IS_FORK == 'false'
+        shell: bash
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          IMG: ${{ inputs.image-name }}:${{ steps.container_info.outputs.image-tag }}
+          BUILD_ARGS: ${{ inputs.build-args }}
+          DOCKER_BUILD_ARGS: >-
+            --push
+            --platform ${{ inputs.build-platform }}
+            --tag ${{ inputs.image-name }}:latest
+        run: make docker.build

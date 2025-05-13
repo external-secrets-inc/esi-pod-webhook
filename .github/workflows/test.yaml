@@ -1,0 +1,98 @@
+name: lint-and-test
+
+on:
+  pull_request:
+  workflow_call:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  GOLANGCI_VERSION: 'v1.64.5'
+  NAME: secretless-webhook
+jobs:
+  lint:
+    permissions:
+      contents: read  # for actions/checkout to fetch code
+      pull-requests: read  # for golangci/golangci-lint-action to fetch pull requests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        id: setup-go
+        with:
+          go-version-file: "go.mod"
+
+      - name: Login to github app
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+            app-id: ${{ vars.ESI_BOT_APP_ID }}
+            private-key: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
+            owner: external-secrets-inc
+      - name: Setup access for private go modules
+        run: |
+          echo -e "machine github.com login external-secrets-bot[bot] password ${{ steps.app-token.outputs.token }}" >> ~/.netrc
+
+      - name: Download Go modules
+        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
+        run: go mod download
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_VERSION }}
+          skip-cache: true
+          args: --timeout=30m
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4 # v4.1.7
+
+      - name: Set up Google Cloud authentication
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.DEV_IDENTITY_POOL }}
+          service_account: ${{ vars.TENANT_MANAGER_CI_SERVICE_ACCOUNT }}
+          access_token_lifetime: 1800s
+
+      - name: Fetch History
+        run: git fetch --prune --unshallow
+
+      - name: Setup Go
+        uses: actions/setup-go@v5 # v5.0.2
+        id: setup-go
+        with:
+          go-version-file: "go.mod"
+
+      - name: Login to github app
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+            app-id: ${{ vars.ESI_BOT_APP_ID }}
+            private-key: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
+            owner: external-secrets-inc
+      - name: Setup access for private go modules
+        run: |
+          echo -e "machine github.com login external-secrets-bot[bot] password ${{ steps.app-token.outputs.token }}" >> ~/.netrc
+
+      - name: Download Go modules
+        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
+        run: go mod download
+
+      - name: Run Unit Tests
+        run: |
+          make test
