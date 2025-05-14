@@ -9,18 +9,16 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-
 	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	"gopkg.in/yaml.v3"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -581,13 +579,15 @@ func main() {
 	if debugPort > 0 {
 		go func() {
 			log.Printf("Starting debug server on port %d", debugPort)
-			// Register pprof handlers
 			mux := http.NewServeMux()
-			mux.HandleFunc("/debug/pprof/", pprof.Index)
-			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			mux.HandleFunc("/debug/info", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"status":     "running",
+					"port":       port,
+					"debug_port": debugPort,
+				})
+			})
 			if err := http.ListenAndServe(fmt.Sprintf(":%d", debugPort), mux); err != nil {
 				log.Printf("Debug server failed: %v", err)
 			}

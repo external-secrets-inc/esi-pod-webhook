@@ -1,6 +1,7 @@
 # Variables
 CLUSTER_NAME = secretless-test
 WEBHOOK_IMAGE = secretless-webhook:latest
+WEBHOOK_DEBUG_IMAGE = secretless-webhook:debug
 ESO_IMAGE = secretless-eso:latest
 NAMESPACE = secretless-system
 VAULT_NAMESPACE = vault
@@ -79,6 +80,17 @@ deploy-webhook: build-deploy
 	@echo "Creating namespace..."
 	kubectl create namespace $(NAMESPACE) || true
 	@echo "Deploying webhook..."
+	kubectl apply -f k8s/webhook.yaml
+
+.PHONY: deploy-webhook-debug
+deploy-webhook-debug:
+	@echo "Building debug webhook image..."
+	docker build -t $(WEBHOOK_DEBUG_IMAGE) -f Dockerfile.debug .
+	@echo "Loading debug image into Kind cluster..."
+	kind load docker-image $(WEBHOOK_DEBUG_IMAGE) --name $(CLUSTER_NAME)
+	@echo "Creating namespace..."
+	kubectl create namespace $(NAMESPACE) || true
+	@echo "Deploying webhook in debug mode..."
 	kubectl apply -f k8s/webhook.yaml
 
 .PHONY: test-vault
