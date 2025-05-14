@@ -18,16 +18,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
+
 	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -37,7 +38,7 @@ const (
 )
 
 var (
-	runtimeScheme = kruntime.NewScheme()
+	runtimeScheme = runtime.NewScheme()
 	codecs       = serializer.NewCodecFactory(runtimeScheme)
 	deserializer = codecs.UniversalDeserializer()
 )
@@ -144,8 +145,13 @@ func (ws *webhookServer) createSecretlessConfigMap(pod *corev1.Pod, uid types.UI
 	return nil
 }
 
-func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore *esv1.SecretStore, uid types.UID) error {
-	// Convert SecretStore to YAML
+func (ws *webhookServer) createSecretStoreAndExternalSecretConfigMap(pod *corev1.Pod, externalSecret *esv1.ExternalSecret, secretStore *esv1.SecretStore, uid types.UID) error {
+	// Convert ExternalSecret and SecretStore to YAML
+	externalSecretYAML, err := yaml.Marshal(externalSecret)
+	if err != nil {
+		return fmt.Errorf("failed to marshal ExternalSecret: %v", err)
+	}
+
 	secretStoreYAML, err := yaml.Marshal(secretStore)
 	if err != nil {
 		return fmt.Errorf("failed to marshal SecretStore: %v", err)
@@ -154,7 +160,7 @@ func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore
 	// Create ConfigMap
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-secretstore", pod.Name),
+			Name:      fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
 			Namespace: pod.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -166,7 +172,8 @@ func (ws *webhookServer) createSecretStoreConfigMap(pod *corev1.Pod, secretStore
 			},
 		},
 		Data: map[string]string{
-			"config.yaml": string(secretStoreYAML),
+			"externalsecret.yaml": string(externalSecretYAML),
+			"secretstore.yaml":    string(secretStoreYAML),
 		},
 	}
 
@@ -210,15 +217,15 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	_, hasEnvVars := pod.Annotations["secretless.externalsecrets.com/env-vars"]
 	_, hasFileSecrets := pod.Annotations["secretless.externalsecrets.com/file-secrets"]
 	_, hasSkip := pod.Annotations["secretless.externalsecrets.com/skip"]
-	_, hasSecretStore := pod.Annotations["secretless.externalsecrets.com/secretstore"]
+	_, hasExternalSecret := pod.Annotations["secretless.externalsecrets.com/externalsecret"]
 
 	log.Printf("Pod %s/%s secretless annotations status:", pod.Namespace, pod.Name)
 	log.Printf("  hasEnvVars: %v", hasEnvVars)
 	log.Printf("  hasFileSecrets: %v", hasFileSecrets)
 	log.Printf("  hasSkip: %v", hasSkip)
-	log.Printf("  hasSecretStore: %v", hasSecretStore)
+	log.Printf("  hasExternalSecret: %v", hasExternalSecret)
 
-	if !hasEnvVars && !hasFileSecrets && !hasSkip && !hasSecretStore {
+	if !hasEnvVars && !hasFileSecrets && !hasSkip && !hasExternalSecret {
 		log.Printf("Pod %s/%s has no secretless annotations, allowing", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
 			UID: ar.Request.UID,
@@ -241,43 +248,94 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
-	// Get SecretStore name from annotation
-	storeName := pod.Annotations["secretless.externalsecrets.com/secretstore"]
-	if storeName == "" {
-		log.Printf("No SecretStore specified for pod %s, using 'default'", pod.Name)
-		storeName = "default"
+	// Get ExternalSecret name from annotation
+	externalSecretName := pod.Annotations["secretless.externalsecrets.com/externalsecret"]
+	if externalSecretName == "" {
+		log.Printf("No ExternalSecret specified for pod %s", pod.Name)
+		return &admissionv1.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: "externalsecret annotation is required",
+			},
+		}
 	}
 
-	log.Printf("Getting SecretStore %s in namespace %s...", storeName, pod.Namespace)
+	log.Printf("Getting ExternalSecret %s in namespace %s...", externalSecretName, pod.Namespace)
+
+	// Get ExternalSecret
+	externalSecret := &esv1.ExternalSecret{}
+	externalSecretGVR := schema.GroupVersionResource{
+		Group:    "external-secrets.io",
+		Version:  "v1",
+		Resource: "externalsecrets",
+	}
+
+	externalSecretObj, err := ws.dynamic.Resource(externalSecretGVR).Namespace(pod.Namespace).Get(context.TODO(), externalSecretName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			log.Printf("ExternalSecret %s not found in namespace %s", externalSecretName, pod.Namespace)
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: fmt.Sprintf("ExternalSecret %s not found in namespace %s", externalSecretName, pod.Namespace),
+				},
+			}
+		}
+		log.Printf("Error getting ExternalSecret: %v", err)
+		return &admissionv1.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(externalSecretObj.UnstructuredContent(), externalSecret); err != nil {
+		log.Printf("Error converting ExternalSecret: %v", err)
+		return &admissionv1.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	log.Printf("Got ExternalSecret response: %+v", externalSecret)
+
+	// Get referenced SecretStore
+	secretStore := &esv1.SecretStore{}
 	secretStoreGVR := schema.GroupVersionResource{
 		Group:    "external-secrets.io",
 		Version:  "v1",
 		Resource: "secretstores",
 	}
-	secretStore, err := ws.dynamic.Resource(secretStoreGVR).Namespace(pod.Namespace).Get(context.Background(), storeName, metav1.GetOptions{})
+
+	secretStoreObj, err := ws.dynamic.Resource(secretStoreGVR).Namespace(pod.Namespace).Get(context.TODO(), externalSecret.Spec.SecretStoreRef.Name, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			log.Printf("SecretStore %s not found in namespace %s", externalSecret.Spec.SecretStoreRef.Name, pod.Namespace)
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: fmt.Sprintf("SecretStore %s not found in namespace %s", externalSecret.Spec.SecretStoreRef.Name, pod.Namespace),
+				},
+			}
+		}
 		log.Printf("Error getting SecretStore: %v", err)
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
 			Result: &metav1.Status{
-				Message: fmt.Sprintf("failed to get SecretStore %s: %v", storeName, err),
+				Message: err.Error(),
 			},
 		}
 	}
+
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(secretStoreObj.UnstructuredContent(), secretStore); err != nil {
+		log.Printf("Error converting SecretStore: %v", err)
+		return &admissionv1.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
 	log.Printf("Got SecretStore response: %+v", secretStore)
 
-	secretStoreObj := &esv1.SecretStore{}
-	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(secretStore.UnstructuredContent(), secretStoreObj); err != nil {
-		log.Printf("Error converting unstructured to SecretStore: %v", err)
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: fmt.Sprintf("failed to convert SecretStore %s to SecretStore type: %v", storeName, err),
-			},
-		}
-	}
-
-	if err := ws.createSecretStoreConfigMap(&pod, secretStoreObj, req.UID); err != nil {
+	if err := ws.createSecretStoreAndExternalSecretConfigMap(&pod, externalSecret, secretStore, req.UID); err != nil {
 		return &admissionv1.AdmissionResponse{
 			UID: ar.Request.UID,
 			Result: &metav1.Status{
@@ -295,7 +353,29 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
-	if err := ws.createSecretStoreConfigMap(&pod, secretStoreObj, req.UID); err != nil {
+	// Convert unstructured SecretStore to typed SecretStore
+	typedSecretStore := &esv1.SecretStore{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(secretStoreObj.UnstructuredContent(), typedSecretStore); err != nil {
+		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
+			Result: &metav1.Status{
+				Message: fmt.Sprintf("failed to convert unstructured SecretStore: %v", err),
+			},
+		}
+	}
+
+	// Convert unstructured ExternalSecret to typed ExternalSecret
+	externalSecretTyped := &esv1.ExternalSecret{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(externalSecretObj.UnstructuredContent(), externalSecretTyped); err != nil {
+		return &admissionv1.AdmissionResponse{
+			UID: ar.Request.UID,
+			Result: &metav1.Status{
+				Message: fmt.Sprintf("failed to convert unstructured ExternalSecret: %v", err),
+			},
+		}
+	}
+
+	if err := ws.createSecretStoreAndExternalSecretConfigMap(&pod, externalSecretTyped, typedSecretStore, req.UID); err != nil {
 		return &admissionv1.AdmissionResponse{
 			UID: ar.Request.UID,
 			Result: &metav1.Status{
