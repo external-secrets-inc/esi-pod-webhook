@@ -7,7 +7,7 @@ metadata:
     app: test-pod
   annotations:
     secretless.externalsecrets.com/externalsecret: "test-app-secrets"
-    secretless.externalsecrets.com/env-vars: "true"
+    # secretless.externalsecrets.com/env-vars: "true"
     secretless.externalsecrets.com/file-secrets: "true"
 spec:
   serviceAccountName: default
