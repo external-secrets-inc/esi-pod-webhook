@@ -582,11 +582,14 @@ func main() {
 			mux := http.NewServeMux()
 			mux.HandleFunc("/debug/info", func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"status":     "running",
 					"port":       port,
 					"debug_port": debugPort,
 				})
+				if err != nil {
+					log.Printf("Error writing debug response: %v", err)
+				}
 			})
 			if err := http.ListenAndServe(fmt.Sprintf(":%d", debugPort), mux); err != nil {
 				log.Printf("Debug server failed: %v", err)
