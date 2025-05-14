@@ -101,10 +101,13 @@ spec:
           type: RuntimeDefault
       containers:
         - name: webhook
-          image: secretless-webhook:latest
+          image: secretless-webhook:debug
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               drop:
                 - ALL
@@ -115,11 +118,11 @@ spec:
             - containerPort: 40000
               name: debug
               protocol: TCP
+          # Pass TLS cert/key as arguments to the webhook through dlv
           args:
-            - --tls-cert=/etc/webhook/certs/tls.crt
-            - --tls-key=/etc/webhook/certs/tls.key
-            - --port=8443
-            - --debug-port=40000
+            - "--tls-cert=/etc/webhook/certs/tls.crt"
+            - "--tls-key=/etc/webhook/certs/tls.key"
+            - "--port=8443"
           volumeMounts:
             - name: webhook-certs
               mountPath: /etc/webhook/certs

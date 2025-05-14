@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Remote Debug Webhook",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "remotePath": "/workspace",
+            "port": 40000,
+            "host": "127.0.0.1"
+        },
+        {
+            "name": "Debug Webhook",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "env": {
+                "TLS_CERT_FILE": "${workspaceFolder}/certs/tls.crt",
+                "TLS_KEY_FILE": "${workspaceFolder}/certs/tls.key"
+            },
+            "args": [
+                "-tlsCertFile=${workspaceFolder}/certs/tls.crt",
+                "-tlsKeyFile=${workspaceFolder}/certs/tls.key",
+                "-port=8443"
+            ]
+        }
+    ]
+}
