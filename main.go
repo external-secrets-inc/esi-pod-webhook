@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -24,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -40,8 +39,6 @@ const (
 
 var (
 	runtimeScheme = kruntime.NewScheme()
-	codecs        = serializer.NewCodecFactory(runtimeScheme)
-	deserializer  = codecs.UniversalDeserializer()
 )
 
 func init() {
@@ -370,13 +367,6 @@ type patchOperation struct {
 func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 	var patches []patchOperation
 
-	// Get SecretStore name from annotation
-	storeName := pod.Annotations["secretless.externalsecrets.com/secretstore"]
-	if storeName == "" {
-		log.Printf("No SecretStore specified for pod %s, using 'default'", pod.Name)
-		storeName = "default"
-	}
-
 	// Create ConfigMap for SecretStore
 	configVolume := corev1.Volume{
 		Name: "secretstore-config",
@@ -420,13 +410,6 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 
 func createFileModePatches(pod *corev1.Pod) []patchOperation {
 	var patches []patchOperation
-
-	// Get SecretStore name from annotation
-	storeName := pod.Annotations["secretless.externalsecrets.com/secretstore"]
-	if storeName == "" {
-		log.Printf("No SecretStore specified for pod %s, using 'default'", pod.Name)
-		storeName = "default"
-	}
 
 	// Create shared volume for secrets
 	secretVolume := corev1.Volume{
@@ -540,7 +523,7 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 func (ws *webhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	if r.Body != nil {
-		if data, err := ioutil.ReadAll(r.Body); err == nil {
+		if data, err := io.ReadAll(r.Body); err == nil {
 			body = data
 		}
 	}
@@ -633,7 +616,10 @@ func main() {
 	mux.HandleFunc("/mutate", whsvr.serve)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, err = w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing health response: %v", err)
+		}
 	})
 	whsvr.server.Handler = mux
 
@@ -652,5 +638,10 @@ func main() {
 	<-signalChan
 
 	log.Printf("Got OS shutdown signal, shutting down webhook server gracefully...")
-	whsvr.server.Shutdown(context.Background())
+	err = whsvr.server.Shutdown(context.Background())
+	if err != nil {
+		log.Printf("Error shutting down server: %v", err)
+	} else {
+		log.Printf("Webhook server shut down gracefully")
+	}
 }
