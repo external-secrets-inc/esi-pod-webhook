@@ -101,7 +101,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: webhook
-          image: secretless-webhook:latest2
+          image: secretless-webhook:latest5
           imagePullPolicy: Never
           securityContext:
             allowPrivilegeEscalation: false

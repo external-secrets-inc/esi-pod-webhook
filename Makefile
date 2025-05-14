@@ -1,6 +1,6 @@
 # Variables
 CLUSTER_NAME = secretless-test
-WEBHOOK_IMAGE = secretless-webhook:latest2
+WEBHOOK_IMAGE = secretless-webhook:latest5
 WEBHOOK_DEBUG_IMAGE = secretless-webhook:debug
 ESO_IMAGE = secretless-eso:latest
 ESO_INIT_IMAGE = secretless-eso-init:latest
