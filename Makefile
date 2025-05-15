@@ -1,13 +1,30 @@
 # Variables
 CLUSTER_NAME = secretless-test
-WEBHOOK_IMAGE = secretless-webhook:latest
+WEBHOOK_IMAGE = secretless-webhook:latest5
 WEBHOOK_DEBUG_IMAGE = secretless-webhook:debug
 ESO_IMAGE = secretless-eso:latest
+ESO_INIT_IMAGE = secretless-eso-init:latest
+ESO_SIDECAR_IMAGE = secretless-eso-sidecar:latest
 NAMESPACE = secretless-system
 VAULT_NAMESPACE = vault
 
 .PHONY: all
-all: cluster setup-vault setup-eso deploy-webhook test-vault
+all: cluster setup-vault setup-eso deploy-webhook build-eso test-vault
+
+.PHONY: build-eso
+build-eso: build-eso-init build-eso-sidecar
+
+.PHONY: build-eso-init
+build-eso-init:
+	@echo "Building secretless-eso init container image..."
+	docker build -t $(ESO_INIT_IMAGE) -f ../secretless-eso/Dockerfile.init ../secretless-eso
+	kind load docker-image $(ESO_INIT_IMAGE) --name $(CLUSTER_NAME)
+
+.PHONY: build-eso-sidecar
+build-eso-sidecar:
+	@echo "Building secretless-eso sidecar container image..."
+	docker build -t $(ESO_SIDECAR_IMAGE) -f ../secretless-eso/Dockerfile.sidecar ../secretless-eso
+	kind load docker-image $(ESO_SIDECAR_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: cluster
 cluster:

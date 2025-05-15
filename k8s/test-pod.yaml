@@ -6,9 +6,9 @@ metadata:
   labels:
     app: test-pod
   annotations:
-    secretless.externalsecrets.com/secretstore: "vault-backend"
-    secretless.externalsecrets.com/env-vars: "test-app/config"
-    secretless.externalsecrets.com/file-secrets: "test-app/config=/mnt/secrets/config.json"
+    secretless.externalsecrets.com/externalsecret: "test-app-secrets"
+    # secretless.externalsecrets.com/env-vars: "true"
+    secretless.externalsecrets.com/file-secrets: "true"
 spec:
   serviceAccountName: default
   containers:

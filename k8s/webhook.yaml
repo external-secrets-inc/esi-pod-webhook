@@ -56,7 +56,7 @@ metadata:
   name: secretless-webhook
 rules:
   - apiGroups: ["external-secrets.io"]
-    resources: ["secretstores"]
+    resources: ["secretstores", "externalsecrets"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -101,8 +101,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: webhook
-          image: secretless-webhook:debug
-          imagePullPolicy: IfNotPresent
+          image: secretless-webhook:latest5
+          imagePullPolicy: Never
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
