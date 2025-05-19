@@ -1,0 +1,160 @@
+# Default values for esi-pod-webhook.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-pod-webhook # Repository for the webhook image
+  pullPolicy: IfNotPresent             # Default pull policy. Change to IfNotPresent or Always for production.
+  tag: ""                # Default tag. Should align with appVersion in Chart.yaml.
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Common labels to add to all resources
+commonLabels: {}
+  # key: value
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+  # secretless.externalsecrets.com/skip: "true" # This is set directly in the deployment template
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  webhookPort: 8443           # Port the service will expose for the webhook
+  webhookTargetPort: webhook  # Target port on the pod for webhook traffic (can be name or number)
+
+# Container ports definition
+containerPorts:
+  webhook: 8443
+
+# Debugging configuration
+debug:
+  enabled: true # Set to false to disable debug ports
+  service:
+    port: 40000         # Port the service will expose for debugging
+    targetPort: debug   # Target port on the pod for debug traffic (can be name or number)
+  container:
+    port: 40000         # Container port for debugging
+
+# Webhook specific configuration
+webhook:
+  # Path for the mutation endpoint
+  path: "/mutate"
+  # Failure policy for the webhook (Fail or Ignore)
+  failurePolicy: Fail
+  # Timeout for the webhook call
+  timeoutSeconds: 5
+  # TLS certificate and key paths within the container
+  tls:
+    basePath: "/etc/webhook/certs"
+    certFile: "tls.crt"
+    keyFile: "tls.key"
+  # Namespace selector for the MutatingWebhookConfiguration
+  # By default, it excludes the namespace where the webhook itself is deployed
+  namespaceSelector:
+    # Additional namespace names to exclude. The webhook's own namespace ({{ .Release.Namespace }})
+    # is always excluded. These names will be added to that list.
+    # The webhook will NOT operate on pods in these namespaces.
+    # The match rule used is: key: kubernetes.io/metadata.name, operator: NotIn
+    additionalExcludedNamespaces: []
+    # Example:
+    # additionalExcludedNamespaces:
+    #   - "kube-system"
+
+# Resource requests and limits for the webhook container
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Readiness probe configuration
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    # port: webhook # Will be set to containerPorts.webhook name
+    scheme: HTTPS
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 1
+  successThreshold: 1
+  failureThreshold: 3
+
+# Liveness probe configuration
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    # port: webhook # Will be set to containerPorts.webhook name
+    scheme: HTTPS
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 1
+  successThreshold: 1
+  failureThreshold: 3
+
+# Cert-manager integration for TLS certificates
+certManager:
+  enabled: true
+  # Namespace where cert-manager resources (like Certificate) will be created if different from Release.Namespace
+  # For MutatingWebhookConfiguration CA injection, this is the namespace of the CA secret.
+  namespace: "" # Defaults to .Release.Namespace if empty
+  # Name of the Kubernetes Secret where the TLS certificate will be stored
+  secretName: "esi-pod-webhook-cert"
+  # If true, a ClusterIssuer will be created.
+  # Set to false if you have an existing ClusterIssuer or prefer to manage it separately.
+  createIssuer: true
+  issuer:
+    name: "selfsigned-issuer"
+    kind: ClusterIssuer # Can be Issuer or ClusterIssuer
+    # For non-selfsigned issuers, you might need additional config, e.g.:
+    # group: cert-manager.io
+
+# RBAC (Role-Based Access Control) settings
+rbac:
+  # Specifies whether RBAC resources (ClusterRole, ClusterRoleBinding) should be created
+  create: true
+  # You can override the generated ClusterRole name if needed
+  # clusterRoleName: ""
+  # clusterRoleBindingName: ""
+
+# MutatingWebhookConfiguration specific annotations
+mutatingWebhookConfiguration:
+  annotations: {}
+  # Example:
+  # cert-manager.io/issue-temporary-certificate: "true"
+
+# Node selector, tolerations, and affinity for pod assignment
+nodeSelector: {}
+tolerations: []
+affinity: {}

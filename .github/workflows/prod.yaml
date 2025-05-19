@@ -5,7 +5,7 @@ on:
     types: [published]
 
 env:
-  NAME: secretless-webhook
+  NAME: esi-pod-webhook
   TAG_NAME: ${{ github.event.release.tag_name }}
 
 jobs:

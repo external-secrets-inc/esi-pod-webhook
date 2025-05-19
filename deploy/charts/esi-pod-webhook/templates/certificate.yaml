@@ -1,0 +1,24 @@
+{{- if .Values.certManager.enabled -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certManager.secretName }}
+  namespace: {{ include "esi-pod-webhook.certManagerNamespace" . }}
+  labels:
+    {{- include "esi-pod-webhook.labels" . | nindent 4 }}
+  {{- with .Values.certManager.certificateAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  dnsNames:
+    - {{ include "esi-pod-webhook.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "esi-pod-webhook.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: {{ .Values.certManager.issuer.kind }}
+    name: {{ .Values.certManager.issuer.name }}
+    {{- if .Values.certManager.issuer.group }}
+    group: {{ .Values.certManager.issuer.group }}
+    {{- end }}
+  secretName: {{ .Values.certManager.secretName }}
+{{- end -}}

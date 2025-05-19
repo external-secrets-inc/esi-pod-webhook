@@ -1,0 +1,18 @@
+{{- if .Values.rbac.create -}}
+apiVersion: {{ include "esi-pod-webhook.rbac.apiVersion" . }}
+kind: ClusterRole
+metadata:
+  name: {{ include "esi-pod-webhook.fullname" . }}-webhook
+  labels:
+    {{- include "esi-pod-webhook.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["secretstores", "externalsecrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "watch", "update", "delete"]
+  - apiGroups: [""] # Added for leader election and health checks if needed by controller runtime
+    resources: ["events"]
+    verbs: ["create", "patch"]
+{{- end -}}

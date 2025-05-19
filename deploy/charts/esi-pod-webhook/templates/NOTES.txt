@@ -1,0 +1,59 @@
+{{- /*
+This chart installs the ESI Pod Webhook.
+
+Your release is named {{ .Release.Name }}.
+To learn more about the release, try:
+
+  helm status {{ .Release.Name }}
+  helm get all {{ .Release.Name }}
+
+NOTES:
+1. The webhook deployment {{ include "esi-pod-webhook.fullname" . }} has been created.
+   It will mutate pods in namespaces NOT matching '{{ .Release.Namespace }}' that do not have the 'secretless.externalsecrets.com/skip: "true"' annotation.
+
+{{- if .Values.certManager.enabled }}
+2. Cert-manager integration is enabled.
+   - A Certificate named '{{ .Values.certManager.secretName }}' in namespace '{{ include "esi-pod-webhook.certManagerNamespace" . }}' will manage the TLS certificate for the webhook.
+   - The MutatingWebhookConfiguration '{{ include "esi-pod-webhook.fullname" . }}' is configured to have its CA injected from this secret.
+{{- if .Values.certManager.createIssuer }}
+   - A {{ .Values.certManager.issuer.kind }} named '{{ .Values.certManager.issuer.name }}' {{ if eq .Values.certManager.issuer.kind "Issuer" }}in namespace '{{ include "esi-pod-webhook.certManagerNamespace" . }}'{{ end }} has been created to issue the certificate.
+     Make sure cert-manager is installed in your cluster for this to work.
+     You can install cert-manager by following the instructions at: https://cert-manager.io/docs/installation/
+{{- else }}
+   - You have opted out of automatic issuer creation (certManager.createIssuer=false).
+     Ensure that an issuer '{{ .Values.certManager.issuer.name }}' (Kind: {{ .Values.certManager.issuer.kind }}) exists and is functional for certificate issuance.
+{{- end }}
+{{- else }}
+2. Cert-manager integration is disabled (certManager.enabled=false).
+   You will need to provide your own mechanism for provisioning and injecting TLS certificates for the webhook service.
+   The deployment expects a secret named '{{ .Values.certManager.secretName }}' in the '{{ .Release.Namespace }}' namespace, containing 'tls.crt' and 'tls.key'.
+   The MutatingWebhookConfiguration will also require manual CA bundle configuration if not using cert-manager's CA injection.
+{{- end }}
+
+3. The webhook service '{{ include "esi-pod-webhook.fullname" . }}' is exposed on port {{ .Values.service.webhookPort }}.
+
+Troubleshooting:
+- Check webhook pod logs: kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "esi-pod-webhook.name" . }}
+- Check cert-manager pod logs if certificates are not being issued.
+- Describe the MutatingWebhookConfiguration: kubectl describe mutatingwebhookconfiguration {{ include "esi-pod-webhook.fullname" . }}
+
+To test the webhook, create a pod in an eligible namespace. It should be mutated according to the rules defined by annotations like 'secretless.externalsecrets.com/secrets-source'.
+
+Example Pod (save as pod.yaml and apply with kubectl apply -f pod.yaml):
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-secretless-pod
+  namespace: default # Or any namespace other than {{ .Release.Namespace }}
+  annotations:
+    secretless.externalsecrets.com/secrets-source: "k8s-secret-name"
+    # Add other secretless annotations as needed
+spec:
+  containers:
+  - name: myapp
+    image: busybox
+    command: ['sh', '-c', 'echo My app is running! && sleep 3600']
+
+After applying, check the pod spec (kubectl get pod test-secretless-pod -o yaml) to see if the secretless sidecar or environment variables have been injected.
+*/}}

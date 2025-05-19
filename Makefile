@@ -1,7 +1,7 @@
 # Variables
 CLUSTER_NAME = secretless-test
-WEBHOOK_IMAGE = secretless-webhook:latest5
-WEBHOOK_DEBUG_IMAGE = secretless-webhook:debug
+WEBHOOK_IMAGE = esi-pod-webhook:latest5
+WEBHOOK_DEBUG_IMAGE = esi-pod-webhook:debug
 ESO_IMAGE = secretless-eso:latest
 ESO_INIT_IMAGE = secretless-eso-init:latest
 ESO_SIDECAR_IMAGE = secretless-eso-sidecar:latest
@@ -151,7 +151,7 @@ SUITE ?= .*
 AWS_REGION ?= eu-west-1
 EKS_CLUSTER_NAME ?= ar-cluster
 ACCOUNT_ID ?= $(shell aws sts get-caller-identity --query Account --output text)
-ECR_REPO_NAME ?= secretless-webhook
+ECR_REPO_NAME ?= esi-pod-webhook
 ECR_URI ?= $(ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO_NAME):latest
 ARTIFACT_REG:=us-central1-docker.pkg.dev
 CHARTS_REPO := oci://$(ARTIFACT_REG)/external-secrets-inc-registry/public/charts
@@ -253,7 +253,7 @@ build: $(addprefix build-,$(ARCH)) ## Build binary
 build-%: fmt vet ## Build binary for the specified arch
 	@$(INFO) go build $*
 	$(BUILD_ARGS) GOOS=linux GOARCH=$* \
-		go build -o '$(OUTPUT_DIR)/secretless-webhook-linux-$*' 
+		go build -o '$(OUTPUT_DIR)/esi-pod-webhook-linux-$*' 
 	@$(OK) go build $*
 
 .PHONY: run
@@ -290,10 +290,10 @@ PLATFORMS ?= linux/arm64,linux/amd64
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
-	- $(CONTAINER_TOOL) buildx create --name secretless-webhook-builder
-	$(CONTAINER_TOOL) buildx use secretless-webhook-builder
+	- $(CONTAINER_TOOL) buildx create --name esi-pod-webhook-builder
+	$(CONTAINER_TOOL) buildx use esi-pod-webhook-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} --build-arg TARGETOS=$(TARGETOS) --build-arg TARGETARCH=$(TARGETARCH) -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm secretless-webhook-builder
+	- $(CONTAINER_TOOL) buildx rm esi-pod-webhook-builder
 	rm Dockerfile.cross
 
 .PHONY: build-installer
@@ -410,7 +410,7 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 ##@ Helm
 .PHONY: helm.test
 helm.test: ## Run helm tests
-	@helm unittest --file tests/*.yaml --file 'tests/**/*.yaml' deploy/charts/secretless-webhook
+	@helm unittest --file tests/*.yaml --file 'tests/**/*.yaml' deploy/charts/esi-pod-webhook
 
 .PHONY: helm.test.update
 helm.test.update: ## Run helm tests
@@ -422,7 +422,7 @@ helm.login:
 
 .PHONY: helm.push
 helm.push: helm.login ## Push helm chart to the repository
-	@helm package deploy/charts/secretless-webhook
+	@helm package deploy/charts/esi-pod-webhook
 	helm push *.tgz $(CHARTS_REPO)
 
 

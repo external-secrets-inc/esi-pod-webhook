@@ -1,0 +1,28 @@
+{{- if and .Values.certManager.enabled .Values.certManager.createIssuer (eq .Values.certManager.issuer.kind "ClusterIssuer") -}}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.certManager.issuer.name }}
+  labels:
+    {{- include "esi-pod-webhook.labels" . | nindent 4 }}
+  {{- with .Values.certManager.issuerAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selfSigned: {}
+{{- else if and .Values.certManager.enabled .Values.certManager.createIssuer (eq .Values.certManager.issuer.kind "Issuer") -}}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.certManager.issuer.name }}
+  namespace: {{ include "esi-pod-webhook.certManagerNamespace" . }}
+  labels:
+    {{- include "esi-pod-webhook.labels" . | nindent 4 }}
+  {{- with .Values.certManager.issuerAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selfSigned: {}
+{{- end -}}
