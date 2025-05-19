@@ -62,11 +62,11 @@ jobs:
       image-tag: ${{ github.event.release.tag_name }}
       dockerfile: ${{ matrix.dockerfile }}
       tag-suffix: ${{ matrix.tag-suffix }}
-      image-name: us-central1-docker.pkg.dev/external-secrets-inc-registry/public/secretless-webhook
+      image-name: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-pod-webhook
       build-platform: ${{ matrix.build-platform }}
       build-args: ${{ matrix.build-args }}
       build-arch: ${{ matrix.build-arch }}
-      name: "secretless-webhook"
+      name: "esi-pod-webhook"
       ref: ${{ github.ref }}
     secrets:
       ESI_BOT_PRIVATE_KEY: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
