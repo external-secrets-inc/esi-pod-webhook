@@ -1,0 +1,40 @@
+name: Check for diff after go mod tidy and generated targets
+
+on:
+  pull_request: {}
+  workflow_call:
+
+jobs:
+  diff-check-manifests:
+    name: Check for diff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: '${{ github.workspace }}/go.mod'
+      - name: Login to github app
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+            app-id: ${{ vars.ESI_BOT_APP_ID }}
+            private-key: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
+            owner: external-secrets-inc
+      - name: Setup access for private go modules
+        run: |
+          echo -e "machine github.com login external-secrets-bot[bot] password ${{ steps.app-token.outputs.token }}" >> ~/.netrc
+      - name: go mod tidy
+        run: |
+          go mod tidy
+        env:
+          GOPRIVATE: github.com/external-secrets-inc/*
+      - name: Check for diff
+        run: |
+          gitStatus="$(git status --porcelain)"
+          if [[ -z "${gitStatus}" ]]; then
+              exit 0
+          fi
+          echo "${gitStatus}"
+          exit 1

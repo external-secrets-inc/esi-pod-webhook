@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -15,33 +15,29 @@ import (
 	"syscall"
 	"time"
 
+	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
-
-	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 )
 
 const (
-	secretlessBinary  = "secretless-eso"
-	sharedVolumeName  = "secret-data"
-	sharedVolumePath  = "/mnt/secrets"
+	secretlessBinary = "/bin/secretless-eso"
+	sharedVolumeName = "secret-data"
+	sharedVolumePath = "/mnt/secrets"
 )
 
 var (
 	runtimeScheme = runtime.NewScheme()
-	codecs       = serializer.NewCodecFactory(runtimeScheme)
-	deserializer = codecs.UniversalDeserializer()
 )
 
 func init() {
@@ -54,7 +50,7 @@ func init() {
 }
 
 type webhookServer struct {
-	server *http.Server
+	server    *http.Server
 	clientset *kubernetes.Clientset
 	dynamic   dynamic.Interface
 }
@@ -245,7 +241,7 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	if !hasEnvVars && !hasFileSecrets && !hasSkip && !hasExternalSecret {
 		log.Printf("Pod %s/%s has no secretless annotations, allowing", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
+			UID:     ar.Request.UID,
 			Allowed: true,
 		}
 	}
@@ -253,14 +249,14 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	if pod.Annotations["secretless.externalsecrets.com/skip"] == "true" {
 		log.Printf("Skipping pod %s/%s due to skip annotation", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
+			UID:     ar.Request.UID,
 			Allowed: true,
 		}
 	}
 
 	if !needsMutation(&pod) {
 		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
+			UID:     ar.Request.UID,
 			Allowed: true,
 		}
 	}
@@ -398,7 +394,7 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 	}
 
 	return &admissionv1.AdmissionResponse{
-		UID: ar.Request.UID,
+		UID:     ar.Request.UID,
 		Allowed: true,
 		Patch:   patchBytes,
 		PatchType: func() *admissionv1.PatchType {
@@ -492,7 +488,7 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 			"--mode=envVarInjection",
 			"--binary=" + strings.Join(originalCommand, " "),
 		}
-		
+
 		// Add volume mounts
 		pod.Spec.Containers[i].VolumeMounts = append(
 			pod.Spec.Containers[i].VolumeMounts,
@@ -610,8 +606,8 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 
 	// Add sidecar container
 	patches = append(patches, patchOperation{
-		Op:   "add",
-		Path: "/spec/containers/-",
+		Op:    "add",
+		Path:  "/spec/containers/-",
 		Value: sidecarContainer,
 	})
 
@@ -632,7 +628,7 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 func (ws *webhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	if r.Body != nil {
-		if data, err := ioutil.ReadAll(r.Body); err == nil {
+		if data, err := io.ReadAll(r.Body); err == nil {
 			body = data
 		}
 	}
@@ -664,7 +660,7 @@ func (ws *webhookServer) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(resp); err != nil {
 		log.Printf("Can't write response: %v", err)
@@ -687,7 +683,6 @@ func main() {
 	// Create shared mux for both servers
 	mux := http.NewServeMux()
 
-
 	// Create webhook server with Kubernetes client
 	whsvr, err := newWebhookServer(kubeconfigPath)
 	if err != nil {
@@ -698,7 +693,10 @@ func main() {
 	mux.HandleFunc("/mutate", whsvr.serve)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, err = w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing health response: %v", err)
+		}
 	})
 
 	// Load TLS cert/key
@@ -730,5 +728,10 @@ func main() {
 	<-signalChan
 
 	log.Printf("Got OS shutdown signal, shutting down webhook server gracefully...")
-	whsvr.server.Shutdown(context.Background())
+	err = whsvr.server.Shutdown(context.Background())
+	if err != nil {
+		log.Printf("Error shutting down server: %v", err)
+	} else {
+		log.Printf("Webhook server shut down gracefully")
+	}
 }
