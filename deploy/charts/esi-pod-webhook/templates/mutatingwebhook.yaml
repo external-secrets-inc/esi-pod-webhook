@@ -1,0 +1,40 @@
+apiVersion: {{ include "esi-pod-webhook.admission.apiVersion" . }}
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "esi-pod-webhook.fullname" . }}
+  labels:
+    {{- include "esi-pod-webhook.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.certManager.enabled }}
+    cert-manager.io/inject-ca-from: "{{ include "esi-pod-webhook.certManagerNamespace" . }}/{{ .Values.certManager.secretName }}"
+    {{- end }}
+    {{- with .Values.mutatingWebhookConfiguration.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+webhooks:
+  - name: {{ include "esi-pod-webhook.fullname" . }}.{{ .Release.Namespace }}.svc # A more unique name
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - {{ .Release.Namespace }}
+            {{- range .Values.webhook.namespaceSelector.additionalExcludedNamespaces }}
+            - {{ . | quote }}
+            {{- end }}
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+        scope: "Namespaced"
+    clientConfig:
+      service:
+        name: {{ include "esi-pod-webhook.fullname" . }}
+        namespace: {{ .Release.Namespace }}
+        path: {{ .Values.webhook.path | quote }}
+        port: {{ .Values.service.webhookPort }}
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    timeoutSeconds: {{ .Values.webhook.timeoutSeconds }}
+    failurePolicy: {{ .Values.webhook.failurePolicy }}

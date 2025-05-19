@@ -39,7 +39,7 @@ env:
   ARCH: ${{ inputs.build-arch }}
   DOCKERFILE: ${{ inputs.dockerfile }}
   IS_FORK: "false"
-  NAME: "secretless-webhook"
+  NAME: "esi-pod-webhook"
 
 jobs:
   build-publish:

@@ -1,0 +1,115 @@
+# Test suite for the Service resource
+
+suite: test service
+release:
+  name: my-release
+  namespace: my-namespace
+chart:
+  version: 0.1.0
+  appVersion: v0.1.0
+
+values:
+  # Minimal values to render the service
+  - ../values.yaml # Include default values from the chart
+
+tests:
+  - it: should render the service with default values (debug enabled)
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: my-release-esi-pod-webhook
+      - equal:
+          path: metadata.namespace
+          value: my-namespace
+      - matchRegex:
+          path: metadata.labels["helm.sh/chart"]
+          pattern: ^esi-pod-webhook-0\.1\.0
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: esi-pod-webhook
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: my-release
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].name
+          value: webhook
+      - equal:
+          path: spec.ports[0].port
+          value: 8443
+      - equal:
+          path: spec.ports[0].targetPort
+          value: webhook
+      - equal:
+          path: spec.ports[1].name # Debug port should be present by default
+          value: debug
+      - equal:
+          path: spec.ports[1].port
+          value: 40000
+      - equal:
+          path: spec.ports[1].targetPort
+          value: debug
+      - hasDocuments:
+          count: 1
+
+  - it: should render the service with debug explicitly enabled
+    template: templates/service.yaml
+    set:
+      debug.enabled: true
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[1].name
+          value: debug
+      - equal:
+          path: spec.ports[1].port
+          value: 40000
+
+  - it: should render the service without debug port when debug.enabled is false
+    template: templates/service.yaml
+    set:
+      debug.enabled: false
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].name # Only webhook port should exist
+          value: webhook
+      - equal:
+          path: spec.ports
+          value:
+            - name: webhook
+              port: 8443
+              protocol: TCP
+              targetPort: webhook
+      - notExists:
+          path: spec.ports[1] # Debug port should not exist
+
+  - it: should allow overriding service type and ports
+    template: templates/service.yaml
+    set:
+      service.type: NodePort
+      service.webhookPort: 9443
+      debug.enabled: true
+      debug.service.port: 40001
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: NodePort
+      - equal:
+          path: spec.ports[0].port
+          value: 9443
+      - equal:
+          path: spec.ports[1].name
+          value: debug
+      - equal:
+          path: spec.ports[1].port
+          value: 40001

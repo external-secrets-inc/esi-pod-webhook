@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "esi-pod-webhook.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "esi-pod-webhook.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "esi-pod-webhook.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "esi-pod-webhook.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        secretless.externalsecrets.com/skip: "true"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "esi-pod-webhook.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: webhook
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--tls-cert={{ .Values.webhook.tls.basePath }}/{{ .Values.webhook.tls.certFile }}"
+            - "--tls-key={{ .Values.webhook.tls.basePath }}/{{ .Values.webhook.tls.keyFile }}"
+            - "--port={{ .Values.containerPorts.webhook }}"
+          ports:
+            - name: webhook
+              containerPort: {{ .Values.containerPorts.webhook }}
+              protocol: TCP
+{{- if .Values.debug.enabled }}
+            - name: debug
+              containerPort: {{ .Values.debug.container.port }}
+              protocol: TCP
+{{- end }}
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: {{ .Values.webhook.tls.basePath }}
+              readOnly: true
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.httpGet.path }}
+              port: webhook # References the port name 'webhook'
+              scheme: {{ .Values.livenessProbe.httpGet.scheme }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.httpGet.path }}
+              port: webhook # References the port name 'webhook'
+              scheme: {{ .Values.readinessProbe.httpGet.scheme }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ .Values.certManager.secretName }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

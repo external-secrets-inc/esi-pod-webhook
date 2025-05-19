@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  NAME: secretless-webhook
+  NAME: esi-pod-webhook
 jobs:
   publish-artifacts:
     uses: external-secrets-inc/actions/.github/workflows/publish.yml@main
