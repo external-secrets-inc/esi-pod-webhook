@@ -102,5 +102,9 @@ func (s *Server) handleMutate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to write response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
