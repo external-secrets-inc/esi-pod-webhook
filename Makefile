@@ -1,6 +1,6 @@
 # Variables
 CLUSTER_NAME = secretless-test
-WEBHOOK_IMAGE = esi-pod-webhook:latest15
+WEBHOOK_IMAGE = esi-pod-webhook:latest17
 WEBHOOK_DEBUG_IMAGE = esi-pod-webhook:debug
 ESO_IMAGE = esi-cli:latest
 ESO_INIT_IMAGE = esi-cli-init:test

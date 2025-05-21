@@ -101,7 +101,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: webhook
-          image: esi-pod-webhook:latest15
+          image: esi-pod-webhook:latest17
           imagePullPolicy: Never
           securityContext:
             allowPrivilegeEscalation: false

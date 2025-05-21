@@ -344,7 +344,7 @@ func (ws *webhookServer) createFileModePatches(pod *corev1.Pod, externalSecretNa
 		Args: []string{
 			"--external-secrets=" + externalSecretName,
 			"--mode=daemon",
-			"--inject-on-file=/secrets/config.json=" + externalSecretName,
+			"--inject-on-file=/secrets/secrets.json=" + externalSecretName,
 		},
 	}
 

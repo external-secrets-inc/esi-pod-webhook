@@ -7,15 +7,15 @@ metadata:
     app: test-pod
   annotations:
     secretless.externalsecrets.com/externalsecret: "test-app-secrets"
-    #secretless.externalsecrets.com/env-vars: "true"
-    secretless.externalsecrets.com/file-secrets: "true"
+    secretless.externalsecrets.com/env-vars: "true"
+    # secretless.externalsecrets.com/file-secrets: "true"
 spec:
   serviceAccountName: test-pod-sa
   containers:
   - name: app
     image: busybox
-    #command: ["/bin/sh", "-c", "while true; do env | grep API; sleep 10; done"]
-    command: ["/bin/sh", "-c", "while ! [ -f /secrets/config.json ]; do echo 'Waiting for /secrets/config.json...'; sleep 1; done; while true; do env | grep API; cat /secrets/config.json; sleep 10; done"]
+    command: ["/bin/sh", "-c", "while true; do env | grep API; sleep 10; done"]
+    # command: ["/bin/sh", "-c", "while ! [ -f /secrets/secrets.json ]; do echo 'Waiting for /secrets/secrets.json...'; sleep 1; done; while true; do env | grep API; cat /secrets/secrets.json; sleep 10; done"]
     resources:
       limits:
         cpu: 100m
