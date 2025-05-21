@@ -44,6 +44,8 @@ spec:
             - "--tls-cert={{ .Values.webhook.tls.basePath }}/{{ .Values.webhook.tls.certFile }}"
             - "--tls-key={{ .Values.webhook.tls.basePath }}/{{ .Values.webhook.tls.keyFile }}"
             - "--port={{ .Values.containerPorts.webhook }}"
+            - "--init-image={{ .Values.esiCli.init.image }}"
+            - "--sidecar-image={{ .Values.esiCli.sidecar.image }}"
           ports:
             - name: webhook
               containerPort: {{ .Values.containerPorts.webhook }}

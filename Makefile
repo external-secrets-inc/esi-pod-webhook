@@ -1,10 +1,10 @@
 # Variables
 CLUSTER_NAME = secretless-test
-WEBHOOK_IMAGE = esi-pod-webhook:latest5
+WEBHOOK_IMAGE = esi-pod-webhook:latest15
 WEBHOOK_DEBUG_IMAGE = esi-pod-webhook:debug
-ESO_IMAGE = secretless-eso:latest
-ESO_INIT_IMAGE = secretless-eso-init:latest
-ESO_SIDECAR_IMAGE = secretless-eso-sidecar:latest
+ESO_IMAGE = esi-cli:latest
+ESO_INIT_IMAGE = esi-cli-init:test
+ESO_SIDECAR_IMAGE = esi-cli-sidecar:test
 NAMESPACE = secretless-system
 VAULT_NAMESPACE = vault
 
@@ -17,13 +17,13 @@ build-eso: build-eso-init build-eso-sidecar
 .PHONY: build-eso-init
 build-eso-init:
 	@echo "Building secretless-eso init container image..."
-	docker build -t $(ESO_INIT_IMAGE) -f ../secretless-eso/Dockerfile.init ../secretless-eso
+	docker build -t $(ESO_INIT_IMAGE) -f ../esi-cli/Dockerfile.init ../esi-cli
 	kind load docker-image $(ESO_INIT_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: build-eso-sidecar
 build-eso-sidecar:
 	@echo "Building secretless-eso sidecar container image..."
-	docker build -t $(ESO_SIDECAR_IMAGE) -f ../secretless-eso/Dockerfile.sidecar ../secretless-eso
+	docker build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile.sidecar ../esi-cli
 	kind load docker-image $(ESO_SIDECAR_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: cluster
@@ -82,15 +82,24 @@ setup-eso:
 	@echo "Waiting for ESO CRDs to be ready..."
 	kubectl wait --for=condition=Established crd/secretstores.external-secrets.io --timeout=120s
 
+.PHONY: build-esi-cli
+build-esi-cli:
+	@echo "Building esi-cli binary..."
+	cd ../esi-cli && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/esi-cli-linux-amd64
+
 .PHONY: build-deploy
-build-deploy: build-amd64
+build-deploy: build-amd64 build-esi-cli
 	@echo "Building webhook image..."
 	docker build -t $(WEBHOOK_IMAGE) -f Dockerfile .
-	@echo "Building secretless-eso image..."
-	docker build -t $(ESO_IMAGE) -f ../secretless-eso/Dockerfile ../secretless-eso
+	@echo "Building ESI images..."
+	docker build -t $(ESO_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
+	docker build -t $(ESO_INIT_IMAGE) -f ../esi-cli/Dockerfile.init ../esi-cli
+	docker build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
 	@echo "Loading images into Kind cluster..."
 	kind load docker-image $(WEBHOOK_IMAGE) --name $(CLUSTER_NAME)
 	kind load docker-image $(ESO_IMAGE) --name $(CLUSTER_NAME)
+	kind load docker-image $(ESO_INIT_IMAGE) --name $(CLUSTER_NAME)
+	kind load docker-image $(ESO_SIDECAR_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: deploy-webhook
 deploy-webhook: build-deploy
@@ -116,6 +125,10 @@ test-vault:
 	kubectl wait --for=condition=Available deployment -n $(NAMESPACE) esi-pod-webhook --timeout=120s
 	@echo "Creating Vault SecretStore..."
 	kubectl apply -f k8s/vault-secretstore.yaml
+	@echo "Creating ExternalSecret..."
+	kubectl apply -f k8s/test-externalsecret.yaml
+	@echo "Deleting old test pod if it exists..."
+	kubectl delete pod test-pod --ignore-not-found=true
 	@echo "Creating test pod..."
 	kubectl apply -f k8s/test-pod.yaml
 

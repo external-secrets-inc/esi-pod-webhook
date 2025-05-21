@@ -13,21 +13,17 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	esv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -50,12 +46,15 @@ func init() {
 }
 
 type webhookServer struct {
-	server    *http.Server
-	clientset *kubernetes.Clientset
-	dynamic   dynamic.Interface
+	server          *http.Server
+	clientset       *kubernetes.Clientset
+	dynamic         dynamic.Interface
+	initImage       string
+	sidecarImage    string
+	imagePullPolicy corev1.PullPolicy
 }
 
-func newWebhookServer(kubeconfigPath string) (*webhookServer, error) {
+func newWebhookServer(kubeconfigPath, initImage, sidecarImage string, imagePullPolicy corev1.PullPolicy) (*webhookServer, error) {
 	var config *rest.Config
 	var err error
 
@@ -84,127 +83,12 @@ func newWebhookServer(kubeconfigPath string) (*webhookServer, error) {
 	}
 
 	return &webhookServer{
-		clientset: clientset,
-		dynamic:   dynamicClient,
+		clientset:       clientset,
+		dynamic:         dynamicClient,
+		initImage:       initImage,
+		sidecarImage:    sidecarImage,
+		imagePullPolicy: imagePullPolicy,
 	}, nil
-}
-
-func (ws *webhookServer) createSecretlessConfigMap(pod *corev1.Pod, uid types.UID) error {
-	// Parse file-secrets annotation
-	fileSecrets := pod.Annotations["secretless.externalsecrets.com/file-secrets"]
-	if fileSecrets == "" {
-		return nil
-	}
-
-	// Create config
-	config := map[string]string{
-		"config.json": fmt.Sprintf(`{
-			"external_secrets": [
-				{
-					"name": "%s",
-					"mount_path": "%s"
-				}
-			]
-		}`, fileSecrets, pod.Name),
-	}
-
-	// Create ConfigMap without owner reference (will be added by init container)
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-secretless-config", pod.Name),
-			Namespace: pod.Namespace,
-		},
-		Data: config,
-	}
-
-	// Check if ConfigMap exists
-	existing, err := ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
-	if err == nil {
-		// ConfigMap exists, update it
-		log.Printf("ConfigMap %s/%s exists, updating...", pod.Namespace, configMap.Name)
-		configMap.ResourceVersion = existing.ResourceVersion
-		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
-	} else if k8serrors.IsNotFound(err) {
-		// ConfigMap doesn't exist, create it
-		log.Printf("ConfigMap %s/%s doesn't exist, creating...", pod.Namespace, configMap.Name)
-		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to create secretless ConfigMap: %v", err)
-		}
-		// wait for ConfigMap to be created
-		for {
-			_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
-			if err == nil {
-				break
-			}
-			if !k8serrors.IsNotFound(err) {
-				return fmt.Errorf("failed to get secretless ConfigMap: %v", err)
-			}
-			time.Sleep(1 * time.Second)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed to create or update secretless ConfigMap: %v", err)
-	}
-
-	return nil
-}
-
-func (ws *webhookServer) createSecretStoreAndExternalSecretConfigMap(pod *corev1.Pod, externalSecret *esv1.ExternalSecret, secretStore *esv1.SecretStore, uid types.UID) error {
-	// Convert ExternalSecret and SecretStore to YAML
-	externalSecretYAML, err := yaml.Marshal(externalSecret)
-	if err != nil {
-		return fmt.Errorf("failed to marshal ExternalSecret: %v", err)
-	}
-
-	secretStoreYAML, err := yaml.Marshal(secretStore)
-	if err != nil {
-		return fmt.Errorf("failed to marshal SecretStore: %v", err)
-	}
-
-	// Create ConfigMap without owner reference (will be added by init container)
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-			Namespace: pod.Namespace,
-		},
-		Data: map[string]string{
-			"externalsecret.yaml": string(externalSecretYAML),
-			"secretstore.yaml":    string(secretStoreYAML),
-		},
-	}
-
-	// Check if ConfigMap exists
-	existing, err := ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
-	if err == nil {
-		// ConfigMap exists, update it
-		log.Printf("ConfigMap %s/%s exists, updating...", pod.Namespace, configMap.Name)
-		configMap.ResourceVersion = existing.ResourceVersion
-		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
-	} else if k8serrors.IsNotFound(err) {
-		// ConfigMap doesn't exist, create it
-		log.Printf("ConfigMap %s/%s doesn't exist, creating...", pod.Namespace, configMap.Name)
-		_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Create(context.Background(), configMap, metav1.CreateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to create ConfigMap: %v", err)
-		}
-		// wait for ConfigMap to be created
-		for {
-			_, err = ws.clientset.CoreV1().ConfigMaps(pod.Namespace).Get(context.Background(), configMap.Name, metav1.GetOptions{})
-			if err == nil {
-				break
-			}
-			if !k8serrors.IsNotFound(err) {
-				return fmt.Errorf("failed to get ConfigMap: %v", err)
-			}
-			time.Sleep(1 * time.Second)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed to create ConfigMap: %v", err)
-	}
-
-	return nil
 }
 
 // Mutation webhook
@@ -261,6 +145,8 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
+	var patches []patchOperation
+
 	// Get ExternalSecret name from annotation
 	externalSecretName := pod.Annotations["secretless.externalsecrets.com/externalsecret"]
 	if externalSecretName == "" {
@@ -273,115 +159,15 @@ func (ws *webhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1.Ad
 		}
 	}
 
-	log.Printf("Getting ExternalSecret %s in namespace %s...", externalSecretName, pod.Namespace)
-
-	// Get ExternalSecret
-	externalSecret := &esv1.ExternalSecret{}
-	externalSecretGVR := schema.GroupVersionResource{
-		Group:    "external-secrets.io",
-		Version:  "v1",
-		Resource: "externalsecrets",
-	}
-
-	externalSecretObj, err := ws.dynamic.Resource(externalSecretGVR).Namespace(pod.Namespace).Get(context.TODO(), externalSecretName, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.Printf("ExternalSecret %s not found in namespace %s", externalSecretName, pod.Namespace)
-			return &admissionv1.AdmissionResponse{
-				UID: ar.Request.UID,
-				Result: &metav1.Status{
-					Message: fmt.Sprintf("ExternalSecret %s not found in namespace %s", externalSecretName, pod.Namespace),
-				},
-			}
-		}
-		log.Printf("Error getting ExternalSecret: %v", err)
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(externalSecretObj.UnstructuredContent(), externalSecret); err != nil {
-		log.Printf("Error converting ExternalSecret: %v", err)
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	log.Printf("Got ExternalSecret response: %+v", externalSecret)
-
-	// Get referenced SecretStore
-	secretStore := &esv1.SecretStore{}
-	secretStoreGVR := schema.GroupVersionResource{
-		Group:    "external-secrets.io",
-		Version:  "v1",
-		Resource: "secretstores",
-	}
-
-	secretStoreObj, err := ws.dynamic.Resource(secretStoreGVR).Namespace(pod.Namespace).Get(context.TODO(), externalSecret.Spec.SecretStoreRef.Name, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.Printf("SecretStore %s not found in namespace %s", externalSecret.Spec.SecretStoreRef.Name, pod.Namespace)
-			return &admissionv1.AdmissionResponse{
-				UID: ar.Request.UID,
-				Result: &metav1.Status{
-					Message: fmt.Sprintf("SecretStore %s not found in namespace %s", externalSecret.Spec.SecretStoreRef.Name, pod.Namespace),
-				},
-			}
-		}
-		log.Printf("Error getting SecretStore: %v", err)
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(secretStoreObj.UnstructuredContent(), secretStore); err != nil {
-		log.Printf("Error converting SecretStore: %v", err)
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	log.Printf("Got SecretStore response: %+v", secretStore)
-
-	// Create ConfigMaps
-	if err := ws.createSecretStoreAndExternalSecretConfigMap(&pod, externalSecret, secretStore, req.UID); err != nil {
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	if err := ws.createSecretlessConfigMap(&pod, req.UID); err != nil {
-		return &admissionv1.AdmissionResponse{
-			UID: ar.Request.UID,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	var patches []patchOperation
-
+	// Apply patches based on mode
 	if hasEnvVarMode(&pod) {
-		patches = append(patches, createEnvVarModePatches(&pod)...)
+		// For env vars, use init container to inject env vars
+		patches = append(patches, ws.createEnvVarModePatches(&pod, externalSecretName)...)
 	}
 
 	if hasFileMode(&pod) {
-		patches = append(patches, createFileModePatches(&pod)...)
+		// For file mode, use sidecar container to inject files
+		patches = append(patches, ws.createFileModePatches(&pod, externalSecretName)...)
 	}
 
 	patchBytes, err := json.Marshal(patches)
@@ -424,7 +210,7 @@ type patchOperation struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
-func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
+func (ws *webhookServer) createEnvVarModePatches(pod *corev1.Pod, externalSecretName string) []patchOperation {
 	var patches []patchOperation
 
 	// Create shared volume for secretless binary
@@ -435,36 +221,18 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 		},
 	}
 
-	// Create volume for SecretStore and ExternalSecret
-	configVolume := corev1.Volume{
-		Name: fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-				},
-			},
-		},
-	}
-
 	// Add volumes
-	patches = append(patches,
-		patchOperation{
-			Op:    "add",
-			Path:  "/spec/volumes/-",
-			Value: binaryVolume,
-		},
-		patchOperation{
-			Op:    "add",
-			Path:  "/spec/volumes/-",
-			Value: configVolume,
-		},
-	)
+	patches = append(patches, patchOperation{
+		Op:    "add",
+		Path:  "/spec/volumes/-",
+		Value: binaryVolume,
+	})
 
 	// Create init container
 	initContainer := corev1.Container{
-		Name:  "secretless-init",
-		Image: "secretless-eso-init:latest",
+		Name:            "secretless-init",
+		Image:           ws.initImage,
+		ImagePullPolicy: ws.imagePullPolicy,
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "secretless-bin",
@@ -482,11 +250,25 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 
 	// Modify container command to use secretless-eso with SecretStore
 	for i := range pod.Spec.Containers {
-		originalCommand := pod.Spec.Containers[i].Command
+		var originalCommand []string
+		if len(pod.Spec.Containers[i].Command) > 0 {
+			originalCommand = pod.Spec.Containers[i].Command
+		} else if len(pod.Spec.Containers[i].Args) > 0 {
+			originalCommand = pod.Spec.Containers[i].Args
+		}
+
+		// If no command or args specified, use the default shell
+		if len(originalCommand) == 0 {
+			originalCommand = []string{"/bin/sh", "-c", "while true; do env | grep API; sleep 10; done"}
+		}
+
 		pod.Spec.Containers[i].Command = []string{
-			"/secretless/bin/secretless-eso",
-			"--mode=envVarInjection",
-			"--binary=" + strings.Join(originalCommand, " "),
+			"/secretless/bin/esi-cli",
+			"--external-secrets=" + externalSecretName,
+			"--binary-path=" + originalCommand[0],
+			"--args=" + strings.Join(originalCommand[1:], ","),
+			"--mode=init",
+			"--inject-on-env=*", // Special value to get all keys
 		}
 
 		// Add volume mounts
@@ -495,11 +277,6 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 			corev1.VolumeMount{
 				Name:      "secretless-bin",
 				MountPath: "/secretless/bin",
-				ReadOnly:  true,
-			},
-			corev1.VolumeMount{
-				Name:      fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-				MountPath: "/etc/secretstore-and-externalsecret",
 				ReadOnly:  true,
 			},
 		)
@@ -522,7 +299,7 @@ func createEnvVarModePatches(pod *corev1.Pod) []patchOperation {
 	return patches
 }
 
-func createFileModePatches(pod *corev1.Pod) []patchOperation {
+func (ws *webhookServer) createFileModePatches(pod *corev1.Pod, externalSecretName string) []patchOperation {
 	var patches []patchOperation
 
 	// Create emptyDir volume for secrets
@@ -535,72 +312,39 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 		},
 	}
 
-	// Create volume for SecretStore and ExternalSecret
-	configVolume := corev1.Volume{
-		Name: fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-				},
-			},
-		},
-	}
-
-	// Create ConfigMap for secretless config
-	secretlessConfigVolume := corev1.Volume{
-		Name: "secretless-config",
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: fmt.Sprintf("%s-secretless-config", pod.Name),
-				},
-			},
-		},
-	}
-
 	// Add volumes
-	patches = append(patches,
-		patchOperation{
-			Op:    "add",
-			Path:  "/spec/volumes/-",
-			Value: secretsVolume,
-		},
-		patchOperation{
-			Op:    "add",
-			Path:  "/spec/volumes/-",
-			Value: configVolume,
-		},
-		patchOperation{
-			Op:    "add",
-			Path:  "/spec/volumes/-",
-			Value: secretlessConfigVolume,
-		},
-	)
+	patches = append(patches, patchOperation{
+		Op:    "add",
+		Path:  "/spec/volumes/-",
+		Value: secretsVolume,
+	})
+
+	// Add volume mount to app container
+	appVolumeMount := corev1.VolumeMount{
+		Name:      "secrets",
+		MountPath: "/secrets",
+	}
+	patches = append(patches, patchOperation{
+		Op:    "add",
+		Path:  "/spec/containers/0/volumeMounts/-",
+		Value: appVolumeMount,
+	})
 
 	// Create sidecar container
 	sidecarContainer := corev1.Container{
-		Name:  "secretless-sidecar",
-		Image: "secretless-eso-sidecar:latest",
+		Name:            "secretless-sidecar",
+		Image:           ws.sidecarImage,
+		ImagePullPolicy: ws.imagePullPolicy,
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "secrets",
 				MountPath: "/secrets",
 			},
-			{
-				Name:      fmt.Sprintf("%s-secretstore-and-externalsecret", pod.Name),
-				MountPath: "/etc/secretstore-and-externalsecret",
-				ReadOnly:  true,
-			},
-			{
-				Name:      "secretless-config",
-				MountPath: "/etc/secretless",
-				ReadOnly:  true,
-			},
 		},
 		Args: []string{
-			"--mode=fileInjection",
-			"--config=/etc/secretless/config.json",
+			"--external-secrets=" + externalSecretName,
+			"--mode=daemon",
+			"--inject-on-file=/secrets/config.json=" + externalSecretName,
 		},
 	}
 
@@ -610,17 +354,6 @@ func createFileModePatches(pod *corev1.Pod) []patchOperation {
 		Path:  "/spec/containers/-",
 		Value: sidecarContainer,
 	})
-
-	// Add volume mounts to all containers
-	for i := range pod.Spec.Containers {
-		pod.Spec.Containers[i].VolumeMounts = append(
-			pod.Spec.Containers[i].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      sharedVolumeName,
-				MountPath: sharedVolumePath,
-			},
-		)
-	}
 
 	return patches
 }
@@ -673,18 +406,24 @@ func main() {
 	var tlsCert string
 	var port int
 	var kubeconfigPath string
+	var initImage string
+	var sidecarImage string
+	var imagePullPolicy string
 
 	flag.StringVar(&tlsKey, "tls-key", "", "Path to the TLS key")
 	flag.StringVar(&tlsCert, "tls-cert", "", "Path to the TLS certificate")
 	flag.IntVar(&port, "port", 8443, "Webhook server port")
 	flag.StringVar(&kubeconfigPath, "kube-config", "", "Paths to a kubeconfig. Only required if out-of-cluster.")
+	flag.StringVar(&initImage, "init-image", "esi-cli-init:test", "Image to use for init container")
+	flag.StringVar(&sidecarImage, "sidecar-image", "esi-cli-sidecar:test", "Image to use for sidecar container")
+	flag.StringVar(&imagePullPolicy, "image-pull-policy", string(corev1.PullIfNotPresent), "Image pull policy for injected containers (Always, Never, IfNotPresent)")
 	flag.Parse()
 
 	// Create shared mux for both servers
 	mux := http.NewServeMux()
 
 	// Create webhook server with Kubernetes client
-	whsvr, err := newWebhookServer(kubeconfigPath)
+	whsvr, err := newWebhookServer(kubeconfigPath, initImage, sidecarImage, corev1.PullPolicy(imagePullPolicy))
 	if err != nil {
 		log.Fatalf("Failed to create webhook server: %v", err)
 	}
