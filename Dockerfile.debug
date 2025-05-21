@@ -18,7 +18,7 @@ RUN go mod download
 COPY --chown=webhook:webhook . .
 
 # Build with debug information
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -gcflags="all=-N -l" -o webhook
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -gcflags="all=-N -l" -o webhook ./cmd/webhook
 
 # Switch to non-root user
 USER webhook

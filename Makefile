@@ -1,6 +1,6 @@
 # Variables
 CLUSTER_NAME = secretless-test
-WEBHOOK_IMAGE = esi-pod-webhook:latest17
+WEBHOOK_IMAGE = esi-pod-webhook:latest22
 WEBHOOK_DEBUG_IMAGE = esi-pod-webhook:debug
 ESO_IMAGE = esi-cli:latest
 ESO_INIT_IMAGE = esi-cli-init:test
@@ -23,7 +23,7 @@ build-eso-init:
 .PHONY: build-eso-sidecar
 build-eso-sidecar:
 	@echo "Building secretless-eso sidecar container image..."
-	docker build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile.sidecar ../esi-cli
+	docker build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
 	kind load docker-image $(ESO_SIDECAR_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: cluster
@@ -129,6 +129,10 @@ test-vault:
 	kubectl apply -f k8s/test-externalsecret.yaml
 	@echo "Deleting old test pod if it exists..."
 	kubectl delete pod test-pod --ignore-not-found=true
+	@echo "Creating SA to be used by the getter..."
+	kubectl apply -f k8s/eso-sa.yaml
+	@echo "Creating SA to be used by test pod with permissions..."
+	kubectl apply -f k8s/test-pod-sa.yaml
 	@echo "Creating test pod..."
 	kubectl apply -f k8s/test-pod.yaml
 
@@ -266,12 +270,12 @@ build: $(addprefix build-,$(ARCH)) ## Build binary
 build-%: fmt vet ## Build binary for the specified arch
 	@$(INFO) go build $*
 	$(BUILD_ARGS) GOOS=linux GOARCH=$* \
-		go build -o '$(OUTPUT_DIR)/esi-pod-webhook-linux-$*' 
+		go build -o '$(OUTPUT_DIR)/esi-pod-webhook-linux-$*' ./cmd/webhook
 	@$(OK) go build $*
 
 .PHONY: run
 run: fmt vet ## Run a controller from your host.
-	go run ./
+	go run ./cmd/webhook
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
