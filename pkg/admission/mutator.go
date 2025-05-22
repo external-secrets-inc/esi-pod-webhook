@@ -148,8 +148,10 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 		var originalCommand []string
 		if len(pod.Spec.Containers[i].Command) > 0 {
 			originalCommand = pod.Spec.Containers[i].Command
-		} else if len(pod.Spec.Containers[i].Args) > 0 {
-			originalCommand = pod.Spec.Containers[i].Args
+		}
+		var originalArgs []string
+		if len(pod.Spec.Containers[i].Args) > 0 {
+			originalArgs = pod.Spec.Containers[i].Args
 		}
 
 		// If no command or args specified, use the default shell
@@ -162,7 +164,7 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 			"/secretless/bin/esi-cli",
 			"--external-secrets=" + externalSecretName,
 			"--binary-path=" + originalCommand[0],
-			"--args=" + strings.Join(originalCommand[1:], ","),
+			"--args=" + strings.Join(append(originalCommand[1:], originalArgs...), ","),
 			"--mode=init",
 			"--inject-on-env=*", // Special value to get all keys
 		})
