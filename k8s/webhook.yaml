@@ -101,7 +101,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: webhook
-          image: secretless-webhook:latest5
+          image: esi-pod-webhook:latest22
           imagePullPolicy: Never
           securityContext:
             allowPrivilegeEscalation: false
@@ -123,6 +123,9 @@ spec:
             - "--tls-cert=/etc/webhook/certs/tls.crt"
             - "--tls-key=/etc/webhook/certs/tls.key"
             - "--port=8443"
+            - "--image-pull-policy=Never"
+            - "--init-image=esi-cli-init:test"
+            - "--sidecar-image=esi-cli-sidecar:test"
           volumeMounts:
             - name: webhook-certs
               mountPath: /etc/webhook/certs

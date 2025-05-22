@@ -9,6 +9,13 @@ image:
   pullPolicy: IfNotPresent             # Default pull policy. Change to IfNotPresent or Always for production.
   tag: ""                # Default tag. Should align with appVersion in Chart.yaml.
 
+# ESI CLI images configuration
+esiCli:
+  init:
+    image: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-cli-init:latest
+  sidecar:
+    image: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-cli:latest
+
 imagePullSecrets: []
 
 nameOverride: ""
