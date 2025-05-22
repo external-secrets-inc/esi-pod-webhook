@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.1.0...v0.2.0) (2025-05-22)
+
+
+### Features
+
+* adds imagepullsecrets annotations for webhook ([#6](https://github.com/external-secrets-inc/esi-pod-webhook/issues/6)) ([b9c4a5a](https://github.com/external-secrets-inc/esi-pod-webhook/commit/b9c4a5a8ae810713647e688d490edbc88b2f6d90))
+
 ## [0.1.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/0.0.1...v0.1.0) (2025-05-22)
 
 
