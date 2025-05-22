@@ -37,7 +37,12 @@ func (s *Server) mutate(ar *admissionv1.AdmissionReview) *admissionv1.AdmissionR
 
 	// Create patch builder
 	patchBuilder := patch.NewBuilder()
-
+	if s.needsImagePullSecrets(&pod) {
+		imagePullSecrets := strings.Split(pod.Annotations[AnnotationImagePullSecrets], ",")
+		if err := s.handleImagePullSecrets(&pod, imagePullSecrets, patchBuilder); err != nil {
+			return s.responseWithError(err)
+		}
+	}
 	// Apply patches based on mode
 	if s.hasEnvVarMode(&pod) {
 		if err := s.handleEnvVarMode(&pod, externalSecretName, patchBuilder); err != nil {
@@ -80,9 +85,25 @@ func (s *Server) hasEnvVarMode(pod *corev1.Pod) bool {
 	return ok
 }
 
+func (s *Server) needsImagePullSecrets(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations[AnnotationImagePullSecrets]
+	return ok
+}
+
 func (s *Server) hasFileMode(pod *corev1.Pod) bool {
 	_, ok := pod.Annotations[AnnotationFileSecrets]
 	return ok
+}
+
+func (s *Server) handleImagePullSecrets(pod *corev1.Pod, pullSecrets []string, builder *patch.Builder) error {
+	currentPullSecrets := pod.Spec.ImagePullSecrets
+	for _, secret := range pullSecrets {
+		currentPullSecrets = append(currentPullSecrets, corev1.LocalObjectReference{
+			Name: secret,
+		})
+	}
+	builder.Add("/spec/imagePullSecrets", currentPullSecrets)
+	return nil
 }
 
 func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, builder *patch.Builder) error {

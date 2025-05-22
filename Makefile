@@ -17,13 +17,13 @@ build-eso: build-eso-init build-eso-sidecar
 .PHONY: build-eso-init
 build-eso-init:
 	@echo "Building secretless-eso init container image..."
-	docker build -t $(ESO_INIT_IMAGE) -f ../esi-cli/Dockerfile.init ../esi-cli
+	$(DOCKER) build -t $(ESO_INIT_IMAGE) -f ../esi-cli/Dockerfile.init ../esi-cli
 	kind load docker-image $(ESO_INIT_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: build-eso-sidecar
 build-eso-sidecar:
 	@echo "Building secretless-eso sidecar container image..."
-	docker build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
+	$(DOCKER) build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
 	kind load docker-image $(ESO_SIDECAR_IMAGE) --name $(CLUSTER_NAME)
 
 .PHONY: cluster
@@ -90,11 +90,11 @@ build-esi-cli:
 .PHONY: build-deploy
 build-deploy: build-amd64 build-esi-cli
 	@echo "Building webhook image..."
-	docker build -t $(WEBHOOK_IMAGE) -f Dockerfile .
+	$(DOCKER) build -t $(WEBHOOK_IMAGE) -f Dockerfile .
 	@echo "Building ESI images..."
-	docker build -t $(ESO_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
-	docker build -t $(ESO_INIT_IMAGE) -f ../esi-cli/Dockerfile.init ../esi-cli
-	docker build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
+	$(DOCKER) build -t $(ESO_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
+	$(DOCKER) build -t $(ESO_INIT_IMAGE) -f ../esi-cli/Dockerfile.init ../esi-cli
+	$(DOCKER) build -t $(ESO_SIDECAR_IMAGE) -f ../esi-cli/Dockerfile ../esi-cli
 	@echo "Loading images into Kind cluster..."
 	kind load docker-image $(WEBHOOK_IMAGE) --name $(CLUSTER_NAME)
 	kind load docker-image $(ESO_IMAGE) --name $(CLUSTER_NAME)
@@ -111,7 +111,7 @@ deploy-webhook: build-deploy
 .PHONY: deploy-webhook-debug
 deploy-webhook-debug:
 	@echo "Building debug webhook image..."
-	docker build -t $(WEBHOOK_DEBUG_IMAGE) -f Dockerfile.debug .
+	$(DOCKER) build -t $(WEBHOOK_DEBUG_IMAGE) -f Dockerfile.debug .
 	@echo "Loading debug image into Kind cluster..."
 	kind load docker-image $(WEBHOOK_DEBUG_IMAGE) --name $(CLUSTER_NAME)
 	@echo "Creating namespace..."
@@ -201,6 +201,7 @@ FAIL	= (echo ${TIME} ${RED}[FAIL]${CNone} && false)
 # scaffolded by default. However, you might want to replace it to use other
 # tools. (i.e. podman)
 CONTAINER_TOOL ?= docker
+DOCKER ?= docker
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -282,10 +283,10 @@ run: fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker.build
 docker.build: $(addprefix build-,$(ARCH)) ## Build the docker image
-	@$(INFO) docker build
-	echo docker build -f $(DOCKERFILE) . $(DOCKER_BUILD_ARGS) -t ${IMG}
-	DOCKER_BUILDKIT=1 docker build -f $(DOCKERFILE) . $(DOCKER_BUILD_ARGS) -t ${IMG}
-	@$(OK) docker build
+	@$(INFO) $(DOCKER) build
+	echo $(DOCKER) build -f $(DOCKERFILE) . $(DOCKER_BUILD_ARGS) -t ${IMG}
+	DOCKER_BUILDKIT=1 $(DOCKER) build -f $(DOCKERFILE) . $(DOCKER_BUILD_ARGS) -t ${IMG}
+	@$(OK) $(DOCKER) build
 
 
 .PHONY: docker-build
