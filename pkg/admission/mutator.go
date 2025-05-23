@@ -180,30 +180,24 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 		}
 	}
 	// Get original command from container
-	for i := range pod.Spec.Containers {
-		var originalCommand []string
-		if len(pod.Spec.Containers[i].Command) > 0 {
-			originalCommand = pod.Spec.Containers[i].Command
-		}
-		var originalArgs []string
-		if len(pod.Spec.Containers[i].Args) > 0 {
-			originalArgs = pod.Spec.Containers[i].Args
-		}
-
-		// If no command or args specified, use the default shell
-		if len(originalCommand) == 0 {
-			originalCommand = []string{"/bin/sh", "-c", "while true; do env | grep API; sleep 10; done"}
-		}
-
-		// Update container command to use esi-cli
-		builder.Replace(fmt.Sprintf("/spec/containers/%d/command", i), append([]string{
-			"/secretless/bin/esi-cli",
-			"--external-secrets=" + externalSecretName,
-			"--binary-path=" + originalCommand[0],
-			"--args=" + strings.Join(append(originalCommand[1:], originalArgs...), ","),
-			"--mode=init",
-		}, extraArgs...))
+	// NOTE: we cannot do  a  for  loop here  because  we are only mounting  the container zero!
+	var originalCommand []string
+	if len(pod.Spec.Containers[0].Command) > 0 {
+		originalCommand = pod.Spec.Containers[0].Command
 	}
+	var originalArgs []string
+	if len(pod.Spec.Containers[0].Args) > 0 {
+		originalArgs = pod.Spec.Containers[0].Args
+	}
+
+	// Update container command to use esi-cli
+	builder.Replace("/spec/containers/0/command", append([]string{
+		"/secretless/bin/esi-cli",
+		"--external-secrets=" + externalSecretName,
+		"--binary-path=" + originalCommand[0],
+		"--args=" + strings.Join(append(originalCommand[1:], originalArgs...), ","),
+		"--mode=init",
+	}, extraArgs...))
 
 	return nil
 }
