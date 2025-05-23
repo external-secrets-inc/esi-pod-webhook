@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.3.1...v0.3.2) (2025-05-23)
+
+
+### Bug Fixes
+
+* volume  mounting only container.0 but patching all containers ([#14](https://github.com/external-secrets-inc/esi-pod-webhook/issues/14)) ([e723b1e](https://github.com/external-secrets-inc/esi-pod-webhook/commit/e723b1edcd55a6f86f435f94edbd7e5f00ac6461))
+
 ## [0.3.1](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.3.0...v0.3.1) (2025-05-23)
 
 
