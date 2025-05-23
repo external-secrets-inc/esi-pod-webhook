@@ -12,9 +12,11 @@ image:
 # ESI CLI images configuration
 esiCli:
   init:
-    image: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-cli-init:latest
+    image: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-cli-init
+    tag: v1.0.1
   sidecar:
-    image: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-cli:latest
+    image: us-central1-docker.pkg.dev/external-secrets-inc-registry/external/esi-cli
+    tag: v1.0.1
 
 imagePullSecrets: []
 
