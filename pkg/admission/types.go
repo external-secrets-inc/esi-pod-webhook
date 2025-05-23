@@ -27,9 +27,13 @@ type Server struct {
 
 // Annotations used by the webhook
 const (
-	AnnotationExternalSecret   = "secretless.externalsecrets.com/externalsecret"
-	AnnotationEnvVars          = "secretless.externalsecrets.com/env-vars"
-	AnnotationImagePullSecrets = "secretless.externalsecrets.com/image-pull-secrets"
-	AnnotationFileSecrets      = "secretless.externalsecrets.com/file-secrets"
-	AnnotationSkip             = "secretless.externalsecrets.com/skip"
+	AnnotationExternalSecret     = "secretless.externalsecrets.com/externalsecret"
+	AnnotationEnvVars            = "secretless.externalsecrets.com/env-vars"
+	AnnotationImagePullSecrets   = "secretless.externalsecrets.com/image-pull-secrets"
+	AnnotationFileSecrets        = "secretless.externalsecrets.com/file-secrets"
+	AnnotationFederatedServerURL = "secretless.externalsecrets.com/federated-server-url"
+	AnnotationInjectOnEnv        = "secretless.externalsecrets.com/inject-on-env"
+	AnnotationFederatedGenerator = "secretless.externalsecrets.com/federated-generator"
+	AnnotationFederatedStore     = "secretless.externalsecrets.com/federated-store"
+	AnnotationSkip               = "secretless.externalsecrets.com/skip"
 )

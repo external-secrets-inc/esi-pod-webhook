@@ -80,6 +80,26 @@ func (s *Server) needsMutation(pod *corev1.Pod) bool {
 	return s.hasEnvVarMode(pod) || s.hasFileMode(pod)
 }
 
+func (s *Server) hasFederatedMode(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations[AnnotationFederatedServerURL]
+	return ok
+}
+
+func (s *Server) hasInjectOnEnv(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations[AnnotationInjectOnEnv]
+	return ok
+}
+
+func (s *Server) hasFederatedGenerator(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations[AnnotationFederatedGenerator]
+	return ok
+}
+
+func (s *Server) hasFederatedStore(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations[AnnotationFederatedStore]
+	return ok
+}
+
 func (s *Server) hasEnvVarMode(pod *corev1.Pod) bool {
 	_, ok := pod.Annotations[AnnotationEnvVars]
 	return ok
@@ -142,7 +162,23 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 	for _, mount := range volumeMounts {
 		builder.Add("/spec/containers/0/volumeMounts/-", mount)
 	}
+	// All CLI Flags builds go here  on  extraArgs
+	var extraArgs []string
 
+	if s.hasFederatedMode(pod) {
+		extraArgs = append(extraArgs, "--federated-server-url="+pod.Annotations[AnnotationFederatedServerURL])
+		if s.hasFederatedGenerator(pod) {
+			extraArgs = append(extraArgs, "--federated-generators="+pod.Annotations[AnnotationFederatedGenerator])
+		}
+		if s.hasFederatedStore(pod) {
+			extraArgs = append(extraArgs, "--federated-store="+pod.Annotations[AnnotationFederatedStore])
+		}
+		if s.hasInjectOnEnv(pod) {
+			extraArgs = append(extraArgs, "--inject-on-env="+pod.Annotations[AnnotationInjectOnEnv])
+		} else {
+			extraArgs = append(extraArgs, "--inject-on-env=*") // Special value to get all keys
+		}
+	}
 	// Get original command from container
 	for i := range pod.Spec.Containers {
 		var originalCommand []string
@@ -160,14 +196,13 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 		}
 
 		// Update container command to use esi-cli
-		builder.Replace(fmt.Sprintf("/spec/containers/%d/command", i), []string{
+		builder.Replace(fmt.Sprintf("/spec/containers/%d/command", i), append([]string{
 			"/secretless/bin/esi-cli",
 			"--external-secrets=" + externalSecretName,
 			"--binary-path=" + originalCommand[0],
 			"--args=" + strings.Join(append(originalCommand[1:], originalArgs...), ","),
 			"--mode=init",
-			"--inject-on-env=*", // Special value to get all keys
-		})
+		}, extraArgs...))
 	}
 
 	return nil
