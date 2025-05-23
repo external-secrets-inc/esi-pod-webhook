@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.2.0...v0.2.1) (2025-05-22)
+
+
+### Bug Fixes
+
+* also parse args ([#8](https://github.com/external-secrets-inc/esi-pod-webhook/issues/8)) ([b04edb2](https://github.com/external-secrets-inc/esi-pod-webhook/commit/b04edb2f1e62f453783e63d23ead6eba64abf6ad))
+
 ## [0.2.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.1.0...v0.2.0) (2025-05-22)
 
 
