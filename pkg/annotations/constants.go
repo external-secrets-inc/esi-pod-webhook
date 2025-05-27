@@ -17,6 +17,7 @@ const (
 
 	// Environment variable injection annotations
 	AnnotationInjectOnEnv = AnnotationPrefix + "inject-on-env"
+	AnnotationInjectOnFile = AnnotationPrefix + "inject-on-file"
 
 	// Image pull secrets annotation
 	AnnotationImagePullSecrets = AnnotationPrefix + "image-pull-secrets"

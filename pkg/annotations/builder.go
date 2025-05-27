@@ -64,6 +64,10 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 	} else if mode == InitMode {
 		flags = append(flags, "--inject-on-env=*") // Special value to get all keys, only in init mode
 	}
+	// Handle inject-on-file flag
+	if pattern, ok := annotations[AnnotationInjectOnFile]; ok {
+		flags = append(flags, "--inject-on-file="+pattern)
+	}
 
 	return flags, nil
 }
