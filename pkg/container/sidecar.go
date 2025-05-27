@@ -1,6 +1,9 @@
 package container
 
 import (
+	"fmt"
+
+	"github.com/external-secrets-inc/esi-pod-webhook/pkg/annotations"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -23,16 +26,25 @@ func (s *SidecarContainerInjector) CreateContainer(pod *corev1.Pod, externalSecr
 		return nil, err
 	}
 
+	// Create flag builder
+	flagBuilder := annotations.NewFlagBuilder()
+
+	// Build CLI flags
+	flags, err := flagBuilder.BuildFlags(
+		pod.Annotations,
+		annotations.DaemonMode,
+		annotations.WithFilePath("/secrets/secrets.json"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build CLI flags: %v", err)
+	}
+
 	return &corev1.Container{
 		Name:            "secretless-sidecar",
 		Image:           s.config.SidecarImage,
 		ImagePullPolicy: s.config.ImagePullPolicy,
 		VolumeMounts:    volumeMounts,
-		Args: []string{
-			"--external-secrets=" + externalSecretName,
-			"--mode=daemon",
-			"--inject-on-file=/secrets/secrets.json=" + externalSecretName,
-		},
+		Args:           flags,
 	}, nil
 }
 
