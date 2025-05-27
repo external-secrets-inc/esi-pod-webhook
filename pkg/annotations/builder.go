@@ -2,6 +2,7 @@ package annotations
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -81,7 +82,10 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 
 	// If federated mode is enabled, validate required flags
 	if _, ok := annotations[AnnotationFederatedServerURL]; ok {
-		// No additional validation needed for now, but we could add validation for URL format, etc.
+		// Validate server URL format
+		if _, err := url.ParseRequestURI(annotations[AnnotationFederatedServerURL]); err != nil {
+			return fmt.Errorf("invalid server URL: %v", err)
+		}
 	}
 
 	return nil
