@@ -141,27 +141,23 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 	// Create flag builder
 	flagBuilder := annotations.NewFlagBuilder()
 
-	// Get original command from container
-	var originalCommand []string
+	// Get command and args from container
+	var command []string
 	if len(pod.Spec.Containers[0].Command) > 0 {
-		originalCommand = pod.Spec.Containers[0].Command
+		command = pod.Spec.Containers[0].Command
 	}
-	var originalArgs []string
+
+	var args []string
 	if len(pod.Spec.Containers[0].Args) > 0 {
-		originalArgs = pod.Spec.Containers[0].Args
+		args = pod.Spec.Containers[0].Args
 	}
 
-	// Combine command and args
-	if len(originalCommand) > 0 {
-		originalCommand = append(originalCommand, originalArgs...)
-	} else if len(originalArgs) > 0 {
-		originalCommand = originalArgs
-	} else {
-		originalCommand = []string{"/bin/sh", "-c", "while true; do env | grep API; sleep 10; done"}
-	}
-
-	// Build CLI flags
-	flags, err := flagBuilder.BuildFlags(pod.Annotations, annotations.InitMode, annotations.WithOriginalCommand(originalCommand))
+	flags, err := flagBuilder.BuildFlags(
+		pod.Annotations,
+		annotations.InitMode,
+		annotations.WithOriginalCommand(command),
+		annotations.WithOriginalArgs(args),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to build CLI flags: %v", err)
 	}

@@ -33,13 +33,18 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 	// Add mode-specific flags
 	switch mode {
 	case InitMode:
-		if len(options.originalCommand) == 0 {
-			return nil, fmt.Errorf("original command is required for init mode")
+		if len(options.command) > 0 || len(options.args) > 0 {
+			if len(options.command) > 0 {
+				flags = append(flags, "--binary-path="+options.command[0])
+				if len(options.command) > 1 {
+					options.args = append(options.command[1:], options.args...)
+				}
+			}
+
+			if len(options.args) > 0 {
+				flags = append(flags, "--args="+strings.Join(options.args, ","))
+			}
 		}
-		flags = append(flags,
-			"--binary-path="+options.originalCommand[0],
-			"--args="+strings.Join(options.originalCommand[1:], ","),
-		)
 	case DaemonMode:
 		if options.filePath != "" {
 			flags = append(flags, "--inject-on-file="+options.filePath+"="+externalSecretName)

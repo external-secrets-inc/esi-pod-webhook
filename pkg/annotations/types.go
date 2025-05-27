@@ -23,14 +23,22 @@ type BuildOption func(*buildOptions)
 
 // buildOptions contains options for building flags
 type buildOptions struct {
-	originalCommand []string
-	filePath        string
+	command  []string
+	args     []string
+	filePath string
 }
 
 // WithOriginalCommand sets the original command for init mode
 func WithOriginalCommand(cmd []string) BuildOption {
 	return func(o *buildOptions) {
-		o.originalCommand = cmd
+		o.command = cmd
+	}
+}
+
+// WithOriginalArgs sets the original args for init mode
+func WithOriginalArgs(args []string) BuildOption {
+	return func(o *buildOptions) {
+		o.args = args
 	}
 }
 
