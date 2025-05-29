@@ -50,6 +50,10 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		if options.filePath != "" {
 			flags = append(flags, "--inject-on-file="+options.filePath+"="+externalSecretName)
 		}
+		// Handle daemon refresh interval
+		if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
+			flags = append(flags, "--daemon-refresh-interval="+interval)
+		}
 	}
 
 	// Handle federated mode flags
@@ -82,16 +86,11 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		flags = append(flags, "--inject-on-file="+pattern)
 	}
 
-	// Handle daemon refresh interval
-	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
-		flags = append(flags, "--daemon-refresh-interval="+interval)
-	}
-
 	return flags, nil
 }
 
 // ValidateAnnotations validates the annotations
-func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
+func (b *flagBuilder) ValidateAnnotations(annotations map[string]string, mode Mode) error {
 	// Check for required external secret annotation
 	if _, ok := annotations[AnnotationExternalSecret]; !ok {
 		return fmt.Errorf("missing required annotation: %s", AnnotationExternalSecret)
@@ -107,6 +106,11 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 
 	// Validate daemon refresh interval if specified
 	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
+		// Validate that refresh interval is only used in daemon mode
+		if mode != DaemonMode {
+			return fmt.Errorf("%s annotation can only be used in daemon mode", AnnotationDaemonRefreshInterval)
+		}
+		// Validate interval format
 		if _, err := time.ParseDuration(interval); err != nil {
 			return fmt.Errorf("invalid daemon refresh interval: %v", err)
 		}

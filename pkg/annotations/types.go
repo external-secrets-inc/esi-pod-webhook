@@ -15,7 +15,7 @@ type FlagBuilder interface {
 	// BuildFlags builds CLI flags from pod annotations and original command
 	BuildFlags(annotations map[string]string, mode Mode, opts ...BuildOption) ([]string, error)
 	// ValidateAnnotations validates the annotations
-	ValidateAnnotations(annotations map[string]string) error
+	ValidateAnnotations(annotations map[string]string, mode Mode) error
 }
 
 // BuildOption represents an option for building flags
