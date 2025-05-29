@@ -22,6 +22,23 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		opt(options)
 	}
 
+	// Validate annotations
+	if err := b.ValidateAnnotations(annotations); err != nil {
+		return nil, err
+	}
+
+	// Validate mode-specific annotations
+	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
+		// Validate that refresh interval is only used in daemon mode
+		if mode != DaemonMode {
+			return nil, fmt.Errorf("%s annotation can only be used in daemon mode", AnnotationDaemonRefreshInterval)
+		}
+		// Validate interval format
+		if _, err := time.ParseDuration(interval); err != nil {
+			return nil, fmt.Errorf("invalid daemon refresh interval: %v", err)
+		}
+	}
+
 	flags := []string{}
 
 	// Get external secret name
@@ -49,6 +66,10 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 	case DaemonMode:
 		if options.filePath != "" {
 			flags = append(flags, "--inject-on-file="+options.filePath+"="+externalSecretName)
+		}
+		// Handle daemon refresh interval
+		if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
+			flags = append(flags, "--daemon-refresh-interval="+interval)
 		}
 	}
 
@@ -82,11 +103,6 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		flags = append(flags, "--inject-on-file="+pattern)
 	}
 
-	// Handle daemon refresh interval
-	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
-		flags = append(flags, "--daemon-refresh-interval="+interval)
-	}
-
 	return flags, nil
 }
 
@@ -102,13 +118,6 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 		// Validate server URL format
 		if _, err := url.ParseRequestURI(annotations[AnnotationFederatedServerURL]); err != nil {
 			return fmt.Errorf("invalid server URL: %v", err)
-		}
-	}
-
-	// Validate daemon refresh interval if specified
-	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
-		if _, err := time.ParseDuration(interval); err != nil {
-			return fmt.Errorf("invalid daemon refresh interval: %v", err)
 		}
 	}
 
