@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type flagBuilder struct{}
@@ -62,6 +63,14 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		if store, ok := annotations[AnnotationFederatedStore]; ok {
 			flags = append(flags, "--federated-store="+store)
 		}
+		// Optional token path
+		if tokenPath, ok := annotations[AnnotationFederatedToken]; ok {
+			flags = append(flags, "--federated-token="+tokenPath)
+		}
+		// Optional CA cert path
+		if caCrtPath, ok := annotations[AnnotationFederatedCaCrt]; ok {
+			flags = append(flags, "--federated-ca-crt="+caCrtPath)
+		}
 	}
 
 	// Handle inject-on-env flag
@@ -73,6 +82,11 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 	// Handle inject-on-file flag
 	if pattern, ok := annotations[AnnotationInjectOnFile]; ok {
 		flags = append(flags, "--inject-on-file="+pattern)
+	}
+
+	// Handle daemon refresh interval
+	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
+		flags = append(flags, "--daemon-refresh-interval="+interval)
 	}
 
 	return flags, nil
@@ -90,6 +104,13 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 		// Validate server URL format
 		if _, err := url.ParseRequestURI(annotations[AnnotationFederatedServerURL]); err != nil {
 			return fmt.Errorf("invalid server URL: %v", err)
+		}
+	}
+
+	// Validate daemon refresh interval if specified
+	if interval, ok := annotations[AnnotationDaemonRefreshInterval]; ok {
+		if _, err := time.ParseDuration(interval); err != nil {
+			return fmt.Errorf("invalid daemon refresh interval: %v", err)
 		}
 	}
 
