@@ -10,10 +10,15 @@ const (
 	AnnotationExternalSecret = AnnotationPrefix + "externalsecret"
 	AnnotationSkip          = AnnotationPrefix + "skip"
 
-	// Federated mode annotations
+	// Federation mode annotations
 	AnnotationFederatedServerURL  = AnnotationPrefix + "federated-server-url"
 	AnnotationFederatedGenerator = AnnotationPrefix + "federated-generators"
 	AnnotationFederatedStore     = AnnotationPrefix + "federated-store"
+	AnnotationFederatedToken     = AnnotationPrefix + "federated-token"
+	AnnotationFederatedCaCrt     = AnnotationPrefix + "federated-ca-crt"
+
+	// Daemon mode annotations
+	AnnotationDaemonRefreshInterval = AnnotationPrefix + "daemon-refresh-interval"
 
 	// Environment variable injection annotations
 	AnnotationInjectOnEnv = AnnotationPrefix + "inject-on-env"
