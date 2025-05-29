@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/external-secrets-inc/esi-pod-webhook/pkg/annotations"
 	"github.com/external-secrets-inc/esi-pod-webhook/pkg/patch"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -74,45 +75,19 @@ func (s *Server) mutate(ar *admissionv1.AdmissionReview) *admissionv1.AdmissionR
 }
 
 func (s *Server) needsMutation(pod *corev1.Pod) bool {
-	if pod.Annotations[AnnotationSkip] == "true" {
-		return false
-	}
-	return s.hasEnvVarMode(pod) || s.hasFileMode(pod)
-}
-
-func (s *Server) hasFederatedMode(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationFederatedServerURL]
-	return ok
-}
-
-func (s *Server) hasInjectOnEnv(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationInjectOnEnv]
-	return ok
-}
-
-func (s *Server) hasFederatedGenerator(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationFederatedGenerator]
-	return ok
-}
-
-func (s *Server) hasFederatedStore(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationFederatedStore]
-	return ok
+	return annotations.NeedsMutation(pod)
 }
 
 func (s *Server) hasEnvVarMode(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationEnvVars]
-	return ok
+	return annotations.HasEnvVarMode(pod)
 }
 
 func (s *Server) needsImagePullSecrets(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationImagePullSecrets]
-	return ok
+	return annotations.NeedsImagePullSecrets(pod)
 }
 
 func (s *Server) hasFileMode(pod *corev1.Pod) bool {
-	_, ok := pod.Annotations[AnnotationFileSecrets]
-	return ok
+	return annotations.HasFileMode(pod)
 }
 
 func (s *Server) handleImagePullSecrets(pod *corev1.Pod, pullSecrets []string, builder *patch.Builder) error {
@@ -162,42 +137,34 @@ func (s *Server) handleEnvVarMode(pod *corev1.Pod, externalSecretName string, bu
 	for _, mount := range volumeMounts {
 		builder.Add("/spec/containers/0/volumeMounts/-", mount)
 	}
-	// All CLI Flags builds go here  on  extraArgs
-	var extraArgs []string
 
-	if s.hasFederatedMode(pod) {
-		extraArgs = append(extraArgs, "--federated-server-url="+pod.Annotations[AnnotationFederatedServerURL])
-		if s.hasFederatedGenerator(pod) {
-			extraArgs = append(extraArgs, "--federated-generators="+pod.Annotations[AnnotationFederatedGenerator])
-		}
-		if s.hasFederatedStore(pod) {
-			extraArgs = append(extraArgs, "--federated-store="+pod.Annotations[AnnotationFederatedStore])
-		}
-		if s.hasInjectOnEnv(pod) {
-			extraArgs = append(extraArgs, "--inject-on-env="+pod.Annotations[AnnotationInjectOnEnv])
-		} else {
-			extraArgs = append(extraArgs, "--inject-on-env=*") // Special value to get all keys
-		}
-	}
-	// Get original command from container
-	// NOTE: we cannot do  a  for  loop here  because  we are only mounting  the container zero!
-	var originalCommand []string
+	// Create flag builder
+	flagBuilder := annotations.NewFlagBuilder()
+
+	// Get command and args from container
+	var command []string
 	if len(pod.Spec.Containers[0].Command) > 0 {
-		originalCommand = pod.Spec.Containers[0].Command
+		command = pod.Spec.Containers[0].Command
 	}
-	var originalArgs []string
+
+	var args []string
 	if len(pod.Spec.Containers[0].Args) > 0 {
-		originalArgs = pod.Spec.Containers[0].Args
+		args = pod.Spec.Containers[0].Args
+	}
+
+	flags, err := flagBuilder.BuildFlags(
+		pod.Annotations,
+		annotations.InitMode,
+		annotations.WithOriginalCommand(command),
+		annotations.WithOriginalArgs(args),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to build CLI flags: %v", err)
 	}
 
 	// Update container command to use esi-cli
-	builder.Replace("/spec/containers/0/command", append([]string{
-		"/secretless/bin/esi-cli",
-		"--external-secrets=" + externalSecretName,
-		"--binary-path=" + originalCommand[0],
-		"--args=" + strings.Join(append(originalCommand[1:], originalArgs...), ","),
-		"--mode=init",
-	}, extraArgs...))
+	builder.Replace("/spec/containers/0/command",
+		append([]string{"/secretless/bin/esi-cli"}, flags...))
 
 	return nil
 }
