@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.3.2...v0.4.0) (2025-05-30)
+
+
+### Features
+
+* annotations to flags ([#16](https://github.com/external-secrets-inc/esi-pod-webhook/issues/16)) ([ac2c9bf](https://github.com/external-secrets-inc/esi-pod-webhook/commit/ac2c9bf633c1a227627979084688ac807a7042cb))
+
+
+### Bug Fixes
+
+* add spiffe related annotations ([#19](https://github.com/external-secrets-inc/esi-pod-webhook/issues/19)) ([b585af3](https://github.com/external-secrets-inc/esi-pod-webhook/commit/b585af38948018da5ea11cb9e1f89b91609fd5d5))
+
 ## [0.3.2](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.3.1...v0.3.2) (2025-05-23)
 
 
