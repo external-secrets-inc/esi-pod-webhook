@@ -57,17 +57,23 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		flags = append(flags, "--federated-server-url="+serverURL)
 
 		// Optional federated flags
+		if auth, ok := annotations[AnnotationFederatedAuth]; ok {
+			flags = append(flags, "--federated-auth="+auth)
+		}
 		if generator, ok := annotations[AnnotationFederatedGenerator]; ok {
 			flags = append(flags, "--federated-generators="+generator)
-		}
-		if store, ok := annotations[AnnotationFederatedStore]; ok {
-			flags = append(flags, "--federated-store="+store)
 		}
 		if tokenPath, ok := annotations[AnnotationFederatedToken]; ok {
 			flags = append(flags, "--federated-token="+tokenPath)
 		}
 		if caCrtPath, ok := annotations[AnnotationFederatedCaCrt]; ok {
 			flags = append(flags, "--federated-ca-crt="+caCrtPath)
+		}
+		if socketPath, ok := annotations[AnnotationFederatedSocket]; ok {
+			flags = append(flags, "--federated-socket-path="+socketPath)
+		}
+		if serverSpiffeId, ok := annotations[AnnotationFederatedServerSpiffeID]; ok {
+			flags = append(flags, "--federated-server-spiffe-id="+serverSpiffeId)
 		}
 	}
 
