@@ -8,20 +8,22 @@ const (
 	AnnotationEnvVars        = AnnotationPrefix + "env-vars"
 	AnnotationFileSecrets    = AnnotationPrefix + "file-secrets"
 	AnnotationExternalSecret = AnnotationPrefix + "externalsecret"
-	AnnotationSkip          = AnnotationPrefix + "skip"
+	AnnotationSkip           = AnnotationPrefix + "skip"
 
 	// Federation mode annotations
-	AnnotationFederatedServerURL  = AnnotationPrefix + "federated-server-url"
-	AnnotationFederatedGenerator = AnnotationPrefix + "federated-generators"
-	AnnotationFederatedStore     = AnnotationPrefix + "federated-store"
-	AnnotationFederatedToken     = AnnotationPrefix + "federated-token"
-	AnnotationFederatedCaCrt     = AnnotationPrefix + "federated-ca-crt"
+	AnnotationFederatedServerURL      = AnnotationPrefix + "federated-server-url"
+	AnnotationFederatedAuth           = AnnotationPrefix + "federated-auth"
+	AnnotationFederatedGenerator      = AnnotationPrefix + "federated-generators"
+	AnnotationFederatedToken          = AnnotationPrefix + "federated-token"
+	AnnotationFederatedCaCrt          = AnnotationPrefix + "federated-ca-crt"
+	AnnotationFederatedSocket         = AnnotationPrefix + "federated-socket-path"
+	AnnotationFederatedServerSpiffeID = AnnotationPrefix + "federated-server-spiffe-id"
 
 	// Daemon mode annotations
 	AnnotationDaemonRefreshInterval = AnnotationPrefix + "daemon-refresh-interval"
 
 	// Environment variable injection annotations
-	AnnotationInjectOnEnv = AnnotationPrefix + "inject-on-env"
+	AnnotationInjectOnEnv  = AnnotationPrefix + "inject-on-env"
 	AnnotationInjectOnFile = AnnotationPrefix + "inject-on-file"
 
 	// Image pull secrets annotation
