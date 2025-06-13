@@ -9,6 +9,7 @@ image:
   pullPolicy: IfNotPresent             # Default pull policy. Change to IfNotPresent or Always for production.
   tag: ""                # Default tag. Should align with appVersion in Chart.yaml.
 
+
 # ESI CLI images configuration
 esiCli:
   init:
