@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.3...v0.4.4) (2025-09-29)
+
+
+### Bug Fixes
+
+* namespace override ([#27](https://github.com/external-secrets-inc/esi-pod-webhook/issues/27)) ([a1db69d](https://github.com/external-secrets-inc/esi-pod-webhook/commit/a1db69df3b4be843f4a07c9d3d542568ac26f755))
+
 ## [0.4.3](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.2...v0.4.3) (2025-09-29)
 
 
