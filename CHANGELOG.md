@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.2...v0.4.3) (2025-09-29)
+
+
+### Bug Fixes
+
+* add public images ([#25](https://github.com/external-secrets-inc/esi-pod-webhook/issues/25)) ([8d9d622](https://github.com/external-secrets-inc/esi-pod-webhook/commit/8d9d622bf548dbdf89d76123e830b6e27a161b08))
+
 ## [0.4.2](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.1...v0.4.2) (2025-06-13)
 
 
