@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "esi-pod-webhook.fullname" . }}
-  namespace: {{ .Release.Namespace | quote }}
+  namespace: {{ include "esi-pod-webhook.namespace" . | quote }}
   labels:
     {{- include "esi-pod-webhook.labels" . | nindent 4 }}
   {{- with .Values.deploymentAnnotations }}

@@ -12,13 +12,13 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 webhooks:
-  - name: {{ include "esi-pod-webhook.fullname" . }}.{{ .Release.Namespace }}.svc # A more unique name
+  - name: {{ include "esi-pod-webhook.fullname" . }}.{{ include "esi-pod-webhook.namespace" .}}.svc # A more unique name
     namespaceSelector:
       matchExpressions:
         - key: kubernetes.io/metadata.name
           operator: NotIn
           values:
-            - {{ .Release.Namespace }}
+            - {{ include "esi-pod-webhook.namespace" . }}
             {{- range .Values.webhook.namespaceSelector.additionalExcludedNamespaces }}
             - {{ . | quote }}
             {{- end }}
@@ -31,7 +31,7 @@ webhooks:
     clientConfig:
       service:
         name: {{ include "esi-pod-webhook.fullname" . }}
-        namespace: {{ .Release.Namespace }}
+        namespace: {{ include "esi-pod-webhook.namespace" . }}
         path: {{ .Values.webhook.path | quote }}
         port: {{ .Values.service.webhookPort }}
     admissionReviewVersions: ["v1"]
