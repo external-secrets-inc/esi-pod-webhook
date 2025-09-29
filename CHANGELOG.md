@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.6](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.5...v0.4.6) (2025-09-29)
+
+
+### Bug Fixes
+
+* use public images for esi-cli ([#31](https://github.com/external-secrets-inc/esi-pod-webhook/issues/31)) ([e45ba15](https://github.com/external-secrets-inc/esi-pod-webhook/commit/e45ba152ebe1ef47f6a12fad6496b30a6801de4a))
+
 ## [0.4.5](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.4...v0.4.5) (2025-09-29)
 
 
