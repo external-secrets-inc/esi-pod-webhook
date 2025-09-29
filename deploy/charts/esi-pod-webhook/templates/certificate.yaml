@@ -12,8 +12,8 @@ metadata:
   {{- end }}
 spec:
   dnsNames:
-    - {{ include "esi-pod-webhook.fullname" . }}.{{ .Release.Namespace }}.svc
-    - {{ include "esi-pod-webhook.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ include "esi-pod-webhook.fullname" . }}.{{ include "esi-pod-webhook.namespace" . }}.svc
+    - {{ include "esi-pod-webhook.fullname" . }}.{{ include "esi-pod-webhook.namespace" . }}.svc.cluster.local
   issuerRef:
     kind: {{ .Values.certManager.issuer.kind }}
     name: {{ .Values.certManager.issuer.name }}
