@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.5](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.4...v0.4.5) (2025-09-29)
+
+
+### Bug Fixes
+
+* use correct namespace on certificate dns ([#29](https://github.com/external-secrets-inc/esi-pod-webhook/issues/29)) ([0949ff6](https://github.com/external-secrets-inc/esi-pod-webhook/commit/0949ff6f3b63508e3f13118db18ab81673778d5c))
+
 ## [0.4.4](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.3...v0.4.4) (2025-09-29)
 
 
