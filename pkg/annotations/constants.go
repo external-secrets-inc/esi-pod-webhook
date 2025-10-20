@@ -19,6 +19,13 @@ const (
 	AnnotationFederatedSocket         = AnnotationPrefix + "federated-socket-path"
 	AnnotationFederatedServerSpiffeID = AnnotationPrefix + "federated-server-spiffe-id"
 
+	// Okta federation annotations
+	AnnotationOktaClientID       = AnnotationPrefix + "okta-client-id"
+	AnnotationOktaPrivateKeyPath = AnnotationPrefix + "okta-private-key"
+	AnnotationOktaDomain         = AnnotationPrefix + "okta-domain"
+	AnnotationOktaAuthServerID   = AnnotationPrefix + "okta-auth-server"
+	AnnotationOktaScopes         = AnnotationPrefix + "okta-scopes"
+
 	// Daemon mode annotations
 	AnnotationDaemonRefreshInterval = AnnotationPrefix + "daemon-refresh-interval"
 

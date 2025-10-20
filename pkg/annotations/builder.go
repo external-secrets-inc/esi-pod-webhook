@@ -63,17 +63,38 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		if generator, ok := annotations[AnnotationFederatedGenerator]; ok {
 			flags = append(flags, "--federated-generators="+generator)
 		}
+		
+		// Kubernetes auth flags
 		if tokenPath, ok := annotations[AnnotationFederatedToken]; ok {
 			flags = append(flags, "--federated-token="+tokenPath)
 		}
 		if caCrtPath, ok := annotations[AnnotationFederatedCaCrt]; ok {
 			flags = append(flags, "--federated-ca-crt="+caCrtPath)
 		}
+		
+		// SPIFFE auth flags
 		if socketPath, ok := annotations[AnnotationFederatedSocket]; ok {
 			flags = append(flags, "--federated-socket-path="+socketPath)
 		}
 		if serverSpiffeId, ok := annotations[AnnotationFederatedServerSpiffeID]; ok {
 			flags = append(flags, "--federated-server-spiffe-id="+serverSpiffeId)
+		}
+		
+		// Okta auth flags
+		if clientID, ok := annotations[AnnotationOktaClientID]; ok {
+			flags = append(flags, "--okta-client-id="+clientID)
+		}
+		if privateKeyPath, ok := annotations[AnnotationOktaPrivateKeyPath]; ok {
+			flags = append(flags, "--okta-private-key="+privateKeyPath)
+		}
+		if domain, ok := annotations[AnnotationOktaDomain]; ok {
+			flags = append(flags, "--okta-domain="+domain)
+		}
+		if authServerID, ok := annotations[AnnotationOktaAuthServerID]; ok {
+			flags = append(flags, "--okta-auth-server="+authServerID)
+		}
+		if scopes, ok := annotations[AnnotationOktaScopes]; ok {
+			flags = append(flags, "--okta-scopes="+scopes)
 		}
 	}
 
@@ -108,6 +129,25 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 		// Validate server URL format
 		if _, err := url.ParseRequestURI(annotations[AnnotationFederatedServerURL]); err != nil {
 			return fmt.Errorf("invalid server URL: %v", err)
+		}
+		
+		// If Okta auth is selected, validate required Okta parameters
+		if auth, ok := annotations[AnnotationFederatedAuth]; ok && auth == "okta" {
+			if _, ok := annotations[AnnotationOktaClientID]; !ok {
+				return fmt.Errorf("okta auth requires annotation: %s", AnnotationOktaClientID)
+			}
+			if _, ok := annotations[AnnotationOktaPrivateKeyPath]; !ok {
+				return fmt.Errorf("okta auth requires annotation: %s", AnnotationOktaPrivateKeyPath)
+			}
+			if _, ok := annotations[AnnotationOktaDomain]; !ok {
+				return fmt.Errorf("okta auth requires annotation: %s", AnnotationOktaDomain)
+			}
+			// Validate Okta domain URL format
+			if oktaDomain, ok := annotations[AnnotationOktaDomain]; ok {
+				if _, err := url.ParseRequestURI(oktaDomain); err != nil {
+					return fmt.Errorf("invalid Okta domain URL: %v", err)
+				}
+			}
 		}
 	}
 
