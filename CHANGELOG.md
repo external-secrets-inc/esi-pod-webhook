@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.6...v0.5.0) (2025-10-20)
+
+
+### Features
+
+* okta federation ([#33](https://github.com/external-secrets-inc/esi-pod-webhook/issues/33)) ([44b6110](https://github.com/external-secrets-inc/esi-pod-webhook/commit/44b611039042c4028e7735defb191c6c8651f5e3))
+
 ## [0.4.6](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.5...v0.4.6) (2025-09-29)
 
 
