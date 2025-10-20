@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.5.0...v0.5.1) (2025-10-20)
+
+
+### Bug Fixes
+
+* cli version ([#35](https://github.com/external-secrets-inc/esi-pod-webhook/issues/35)) ([331f0ae](https://github.com/external-secrets-inc/esi-pod-webhook/commit/331f0aeea6aa9197575eb260c149be83b8433593))
+
 ## [0.5.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.4.6...v0.5.0) (2025-10-20)
 
 
