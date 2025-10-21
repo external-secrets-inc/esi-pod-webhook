@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.5.1...v0.6.0) (2025-10-21)
+
+
+### Features
+
+* add workload-token annotations ([#37](https://github.com/external-secrets-inc/esi-pod-webhook/issues/37)) ([705fba6](https://github.com/external-secrets-inc/esi-pod-webhook/commit/705fba608307ac285537ff6573ab66d6301bdfa9))
+
 ## [0.5.1](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.5.0...v0.5.1) (2025-10-20)
 
 
