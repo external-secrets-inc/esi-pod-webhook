@@ -26,6 +26,10 @@ const (
 	AnnotationOktaAuthServerID   = AnnotationPrefix + "okta-auth-server"
 	AnnotationOktaScopes         = AnnotationPrefix + "okta-scopes"
 
+	// Workload token annotations
+	AnnotationWorkloadToken     = AnnotationPrefix + "workload-token"
+	AnnotationWorkloadTokenPath = AnnotationPrefix + "workload-token-path"
+
 	// Daemon mode annotations
 	AnnotationDaemonRefreshInterval = AnnotationPrefix + "daemon-refresh-interval"
 
