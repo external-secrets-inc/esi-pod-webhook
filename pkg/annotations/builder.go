@@ -63,7 +63,7 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		if generator, ok := annotations[AnnotationFederatedGenerator]; ok {
 			flags = append(flags, "--federated-generators="+generator)
 		}
-		
+
 		// Kubernetes auth flags
 		if tokenPath, ok := annotations[AnnotationFederatedToken]; ok {
 			flags = append(flags, "--federated-token="+tokenPath)
@@ -71,7 +71,7 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		if caCrtPath, ok := annotations[AnnotationFederatedCaCrt]; ok {
 			flags = append(flags, "--federated-ca-crt="+caCrtPath)
 		}
-		
+
 		// SPIFFE auth flags
 		if socketPath, ok := annotations[AnnotationFederatedSocket]; ok {
 			flags = append(flags, "--federated-socket-path="+socketPath)
@@ -79,7 +79,7 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		if serverSpiffeId, ok := annotations[AnnotationFederatedServerSpiffeID]; ok {
 			flags = append(flags, "--federated-server-spiffe-id="+serverSpiffeId)
 		}
-		
+
 		// Okta auth flags
 		if clientID, ok := annotations[AnnotationOktaClientID]; ok {
 			flags = append(flags, "--okta-client-id="+clientID)
@@ -95,6 +95,14 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 		}
 		if scopes, ok := annotations[AnnotationOktaScopes]; ok {
 			flags = append(flags, "--okta-scopes="+scopes)
+		}
+
+		// Workload token flags
+		if workloadToken, ok := annotations[AnnotationWorkloadToken]; ok {
+			flags = append(flags, "--workload-token="+workloadToken)
+		}
+		if workloadTokenPath, ok := annotations[AnnotationWorkloadTokenPath]; ok {
+			flags = append(flags, "--workload-token-path="+workloadTokenPath)
 		}
 	}
 
@@ -130,7 +138,7 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 		if _, err := url.ParseRequestURI(annotations[AnnotationFederatedServerURL]); err != nil {
 			return fmt.Errorf("invalid server URL: %v", err)
 		}
-		
+
 		// If Okta auth is selected, validate required Okta parameters
 		if auth, ok := annotations[AnnotationFederatedAuth]; ok && auth == "okta" {
 			if _, ok := annotations[AnnotationOktaClientID]; !ok {

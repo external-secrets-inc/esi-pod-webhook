@@ -44,7 +44,7 @@ func (s *SidecarContainerInjector) CreateContainer(pod *corev1.Pod, externalSecr
 		Image:           s.config.SidecarImage,
 		ImagePullPolicy: s.config.ImagePullPolicy,
 		VolumeMounts:    volumeMounts,
-		Args:           flags,
+		Args:            flags,
 	}, nil
 }
 

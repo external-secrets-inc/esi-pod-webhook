@@ -14,10 +14,10 @@ image:
 esiCli:
   init:
     image: us-central1-docker.pkg.dev/external-secrets-inc-registry/public/esi-cli-init
-    tag: v1.2.1
+    tag: v1.3.0
   sidecar:
     image: us-central1-docker.pkg.dev/external-secrets-inc-registry/public/esi-cli
-    tag: v1.2.1
+    tag: v1.3.0
 
 imagePullSecrets: []
 
