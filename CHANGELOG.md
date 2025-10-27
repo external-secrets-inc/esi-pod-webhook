@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.6.0...v0.7.0) (2025-10-27)
+
+
+### Features
+
+* add ping identity supportg ([#64](https://github.com/external-secrets-inc/esi-pod-webhook/issues/64)) ([b2d8585](https://github.com/external-secrets-inc/esi-pod-webhook/commit/b2d8585b73fd00fcd7a3713d4e347847887496f2))
+* update deps ([#40](https://github.com/external-secrets-inc/esi-pod-webhook/issues/40)) ([e0922de](https://github.com/external-secrets-inc/esi-pod-webhook/commit/e0922de3c2d2fcdd65b0f34bebef65dd67c34f3e))
+
+
+### Bug Fixes
+
+* auto merge on separate flow ([#47](https://github.com/external-secrets-inc/esi-pod-webhook/issues/47)) ([9923e29](https://github.com/external-secrets-inc/esi-pod-webhook/commit/9923e29d004732a589de0da133a68367929104bb))
+* bump esi-cli ([#65](https://github.com/external-secrets-inc/esi-pod-webhook/issues/65)) ([6a31f01](https://github.com/external-secrets-inc/esi-pod-webhook/commit/6a31f01ea5e1cc7078140c8c7654371f944de3ac))
+* trigger on status as wellg ([#50](https://github.com/external-secrets-inc/esi-pod-webhook/issues/50)) ([e0ec4c2](https://github.com/external-secrets-inc/esi-pod-webhook/commit/e0ec4c2d8fe4996bbbbb15848dc10f9dfb289710))
+
 ## [0.6.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.5.1...v0.6.0) (2025-10-21)
 
 
