@@ -14,6 +14,17 @@ all: cluster setup-vault setup-eso deploy-webhook build-eso test-vault
 .PHONY: build-eso
 build-eso: build-eso-init build-eso-sidecar
 
+.PHONY: update-deps
+update-deps:
+	go get -u
+	@go mod tidy
+
+.PHONY: check-diff
+check-diff: ## Ensure branch is clean.
+	@$(INFO) checking that branch is clean
+	@test -z "$$(git status --porcelain)" || (echo "$$(git status --porcelain)" && $(FAIL))
+	@$(OK) branch is clean
+
 .PHONY: build-eso-init
 build-eso-init:
 	@echo "Building secretless-eso init container image..."

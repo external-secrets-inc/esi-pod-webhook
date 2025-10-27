@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod-okta
+  namespace: default
+  labels:
+    app: test-pod-okta
+  annotations:
+    # External secret to inject
+    secretless.externalsecrets.com/externalsecret: "test-app-secrets"
+    
+    # Use init container mode with environment variable injection
+    secretless.externalsecrets.com/env-vars: "true"
+    
+    # Federation server configuration
+    secretless.externalsecrets.com/federated-server-url: "http://federation-server.external-secrets-system:8080"
+    secretless.externalsecrets.com/federated-auth: "okta"
+    
+    # Okta authentication parameters
+    # Note: In production, use Secrets mounted as volumes instead of hardcoded values
+    secretless.externalsecrets.com/okta-client-id: "0oawl3l22qkmQK274697"
+    secretless.externalsecrets.com/okta-private-key: "/okta/private_key.pem"
+    secretless.externalsecrets.com/okta-domain: "https://trial-1038013.okta.com"
+    secretless.externalsecrets.com/okta-auth-server: ""  # Empty for org authorization server
+    # secretless.externalsecrets.com/okta-scopes: ""  # Optional: specify scopes if needed
+    
+    # Optional: Specify custom environment variable mapping
+    # secretless.externalsecrets.com/inject-on-env: "DB_PASSWORD=vault-backend.database-password"
+spec:
+  containers:
+  - name: app
+    image: busybox
+    command: ["/bin/sh", "-c", "while true; do env | grep -E '(API|DB|SECRET)'; sleep 10; done"]
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 32Mi
+    # Mount Okta private key from ConfigMap or Secret
+    volumeMounts:
+    - name: okta-key
+      mountPath: /okta
+      readOnly: true
+  
+  volumes:
+  - name: okta-key
+    secret:
+      secretName: okta-private-key
+      items:
+      - key: private_key.pem
+        path: private_key.pem
+        mode: 0400
+
+---
+# Example Secret containing the Okta private key
+# In production, create this using kubectl create secret or via a secure method
+apiVersion: v1
+kind: Secret
+metadata:
+  name: okta-private-key
+  namespace: default
+type: Opaque
+stringData:
+  private_key.pem: |
+    -----BEGIN RSA PRIVATE KEY-----
+    # REPLACE WITH YOUR ACTUAL PRIVATE KEY
+    # This should match the public key registered in your Okta application
+    -----END RSA PRIVATE KEY-----
