@@ -1,0 +1,13 @@
+name: Auto merge renovate PRs
+
+on:
+  check_suite:
+    types: [completed]
+jobs:
+  enable-auto-merge:
+    uses: external-secrets-inc/actions/.github/workflows/merge-renovate.yml@main
+    permissions:
+      contents: write  # for Git to git push
+      pull-requests: write  # for Git to create PR
+    secrets:
+      ESI_BOT_PRIVATE_KEY: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
