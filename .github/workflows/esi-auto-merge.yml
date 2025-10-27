@@ -1,10 +1,12 @@
 name: Auto merge renovate PRs
 
 on:
+  status:
   check_suite:
     types: [completed]
 jobs:
   enable-auto-merge:
+    if: github.event.state == 'success'
     uses: external-secrets-inc/actions/.github/workflows/merge-renovate.yml@main
     permissions:
       contents: write  # for Git to git push
