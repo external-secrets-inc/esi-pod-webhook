@@ -1,11 +1,11 @@
 module github.com/external-secrets-inc/esi-pod-webhook
 
-go 1.24.2
+go 1.25.3
 
-replace github.com/external-secrets/external-secrets => github.com/external-secrets-inc/external-secrets-enterprise v0.16.3
+replace github.com/external-secrets/external-secrets => github.com/external-secrets-inc/external-secrets-enterprise v1.23.1
 
 require (
-	github.com/external-secrets/external-secrets v0.16.2
+	github.com/external-secrets/external-secrets v0.20.4
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1

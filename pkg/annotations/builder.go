@@ -97,6 +97,23 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 			flags = append(flags, "--okta-scopes="+scopes)
 		}
 
+		// PingIdentity auth flags
+		if clientID, ok := annotations[AnnotationPingIdentityClientID]; ok {
+			flags = append(flags, "--pingidentity-client-id="+clientID)
+		}
+		if privateKeyPath, ok := annotations[AnnotationPingIdentityPrivateKeyPath]; ok {
+			flags = append(flags, "--pingidentity-private-key="+privateKeyPath)
+		}
+		if region, ok := annotations[AnnotationPingIdentityRegion]; ok {
+			flags = append(flags, "--pingidentity-region="+region)
+		}
+		if environmentID, ok := annotations[AnnotationPingIdentityEnvironmentID]; ok {
+			flags = append(flags, "--pingidentity-environment-id="+environmentID)
+		}
+		if scopes, ok := annotations[AnnotationPingIdentityScopes]; ok {
+			flags = append(flags, "--pingidentity-scopes="+scopes)
+		}
+
 		// Workload token flags
 		if workloadToken, ok := annotations[AnnotationWorkloadToken]; ok {
 			flags = append(flags, "--workload-token="+workloadToken)
@@ -154,6 +171,34 @@ func (b *flagBuilder) ValidateAnnotations(annotations map[string]string) error {
 			if oktaDomain, ok := annotations[AnnotationOktaDomain]; ok {
 				if _, err := url.ParseRequestURI(oktaDomain); err != nil {
 					return fmt.Errorf("invalid Okta domain URL: %v", err)
+				}
+			}
+		}
+
+		// If PingIdentity auth is selected, validate required PingIdentity parameters
+		if auth, ok := annotations[AnnotationFederatedAuth]; ok && auth == "pingidentity" {
+			if _, ok := annotations[AnnotationPingIdentityClientID]; !ok {
+				return fmt.Errorf("pingidentity auth requires annotation: %s", AnnotationPingIdentityClientID)
+			}
+			if _, ok := annotations[AnnotationPingIdentityPrivateKeyPath]; !ok {
+				return fmt.Errorf("pingidentity auth requires annotation: %s", AnnotationPingIdentityPrivateKeyPath)
+			}
+			if _, ok := annotations[AnnotationPingIdentityRegion]; !ok {
+				return fmt.Errorf("pingidentity auth requires annotation: %s", AnnotationPingIdentityRegion)
+			}
+			if _, ok := annotations[AnnotationPingIdentityEnvironmentID]; !ok {
+				return fmt.Errorf("pingidentity auth requires annotation: %s", AnnotationPingIdentityEnvironmentID)
+			}
+			// Validate region is one of the supported values
+			if region, ok := annotations[AnnotationPingIdentityRegion]; ok {
+				validRegions := map[string]bool{
+					"com":  true,
+					"eu":   true,
+					"asia": true,
+					"ca":   true,
+				}
+				if !validRegions[region] {
+					return fmt.Errorf("invalid PingIdentity region '%s': must be one of com, eu, asia, ca", region)
 				}
 			}
 		}
