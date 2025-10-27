@@ -1,0 +1,21 @@
+name: "Update dependencies"
+on:
+  schedule:
+    # Everyday, 10AM UTC
+    - cron: "0 10 * * *"
+
+  workflow_dispatch:
+    inputs: {}
+
+
+permissions:
+  contents: read
+
+jobs:
+  update-dependencies:
+    permissions:
+      contents: write  # for Git to git push
+      pull-requests: write  # for Git to create PR
+    uses: external-secrets-inc/actions/.github/workflows/esi-update-deps.yml@main
+    secrets:
+      ESI_BOT_PRIVATE_KEY: ${{ secrets.ESI_BOT_PRIVATE_KEY }}
