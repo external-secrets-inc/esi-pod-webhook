@@ -54,7 +54,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - name: Login to github app
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         id: app-token
         with:
             app-id: ${{ vars.ESI_BOT_APP_ID }}
