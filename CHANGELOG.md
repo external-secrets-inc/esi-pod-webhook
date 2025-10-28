@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.7.0...v0.7.1) (2025-10-28)
+
+
+### Bug Fixes
+
+* webhook annotations ([#66](https://github.com/external-secrets-inc/esi-pod-webhook/issues/66)) ([190f8d6](https://github.com/external-secrets-inc/esi-pod-webhook/commit/190f8d686507e05e9556f7c23f19f118f825a578))
+
 ## [0.7.0](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.6.0...v0.7.0) (2025-10-27)
 
 
