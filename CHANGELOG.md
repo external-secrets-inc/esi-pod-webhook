@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.7.1...v0.7.2) (2025-10-28)
+
+
+### Bug Fixes
+
+* pingidentity cli parse ([#68](https://github.com/external-secrets-inc/esi-pod-webhook/issues/68)) ([489e772](https://github.com/external-secrets-inc/esi-pod-webhook/commit/489e77280519421909228fdc7fb5f5cb351d28a7))
+
 ## [0.7.1](https://github.com/external-secrets-inc/esi-pod-webhook/compare/v0.7.0...v0.7.1) (2025-10-28)
 
 
