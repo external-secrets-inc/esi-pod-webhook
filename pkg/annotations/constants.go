@@ -27,11 +27,11 @@ const (
 	AnnotationOktaScopes         = AnnotationPrefix + "okta-scopes"
 
 	// PingIdentity federation annotations
-	AnnotationPingIdentityClientID       = AnnotationPrefix + "pingidentity-client-id"
-	AnnotationPingIdentityPrivateKeyPath = AnnotationPrefix + "pingidentity-private-key"
-	AnnotationPingIdentityRegion         = AnnotationPrefix + "pingidentity-region"
-	AnnotationPingIdentityEnvironmentID  = AnnotationPrefix + "pingidentity-environment-id"
-	AnnotationPingIdentityScopes         = AnnotationPrefix + "pingidentity-scopes"
+	AnnotationPingIdentityClientID       = AnnotationPrefix + "ping-identity-client-id"
+	AnnotationPingIdentityPrivateKeyPath = AnnotationPrefix + "ping-identity-private-key"
+	AnnotationPingIdentityRegion         = AnnotationPrefix + "ping-identity-region"
+	AnnotationPingIdentityEnvironmentID  = AnnotationPrefix + "ping-identity-environment-id"
+	AnnotationPingIdentityScopes         = AnnotationPrefix + "ping-identity-scopes"
 
 	// Workload token annotations
 	AnnotationWorkloadToken     = AnnotationPrefix + "workload-token"
