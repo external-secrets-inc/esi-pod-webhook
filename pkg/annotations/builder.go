@@ -99,19 +99,19 @@ func (b *flagBuilder) BuildFlags(annotations map[string]string, mode Mode, opts 
 
 		// PingIdentity auth flags
 		if clientID, ok := annotations[AnnotationPingIdentityClientID]; ok {
-			flags = append(flags, "--pingidentity-client-id="+clientID)
+			flags = append(flags, "--ping-identity-client-id="+clientID)
 		}
 		if privateKeyPath, ok := annotations[AnnotationPingIdentityPrivateKeyPath]; ok {
-			flags = append(flags, "--pingidentity-private-key="+privateKeyPath)
+			flags = append(flags, "--ping-identity-private-key="+privateKeyPath)
 		}
 		if region, ok := annotations[AnnotationPingIdentityRegion]; ok {
-			flags = append(flags, "--pingidentity-region="+region)
+			flags = append(flags, "--ping-identity-region="+region)
 		}
 		if environmentID, ok := annotations[AnnotationPingIdentityEnvironmentID]; ok {
-			flags = append(flags, "--pingidentity-environment-id="+environmentID)
+			flags = append(flags, "--ping-identity-environment-id="+environmentID)
 		}
 		if scopes, ok := annotations[AnnotationPingIdentityScopes]; ok {
-			flags = append(flags, "--pingidentity-scopes="+scopes)
+			flags = append(flags, "--ping-identity-scopes="+scopes)
 		}
 
 		// Workload token flags
