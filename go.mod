@@ -6,9 +6,9 @@ replace github.com/external-secrets/external-secrets => github.com/external-secr
 
 require (
 	github.com/external-secrets/external-secrets v0.20.4
-	k8s.io/api v0.34.1
-	k8s.io/apimachinery v0.34.1
-	k8s.io/client-go v0.34.1
+	k8s.io/api v0.34.2
+	k8s.io/apimachinery v0.34.2
+	k8s.io/client-go v0.34.2
 )
 
 require (
