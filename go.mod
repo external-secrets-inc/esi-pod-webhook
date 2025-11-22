@@ -5,7 +5,7 @@ go 1.25.3
 replace github.com/external-secrets/external-secrets => github.com/external-secrets-inc/external-secrets-enterprise v1.24.0
 
 require (
-	github.com/external-secrets/external-secrets v0.20.4
+	github.com/external-secrets/external-secrets v1.0.0
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
